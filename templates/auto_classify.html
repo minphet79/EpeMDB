@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4"> Auto-clasificación de Continentes</h1>
+
+{% if is_dry_run %}
+<p class="text-gray-400 mb-6">
+    Se encontraron <b>{{ total_changes }}</b> películas que necesitan actualización de continente.
+</p>
+
+{% if changes %}
+<div class="mb-4">
+    <a href="/auto-classify-continents?dry_run=false" 
+       onclick="return confirm('¿Aplicar estos {{ total_changes }} cambios?')"
+       class="bg-green-600 hover:bg-green-700 px-6 py-3 rounded font-bold text-lg inline-block">
+        ✅ Aplicar todos los cambios
+    </a>
+</div>
+
+<div class="space-y-2 max-h-[70vh] overflow-y-auto pr-2">
+    {% for c in changes %}
+    <div class="bg-gray-800 p-3 rounded border border-gray-700 flex justify-between items-center">
+        <div>
+            <span class="font-semibold text-white">{{ c.title }}</span>
+            <span class="text-xs text-gray-400 ml-2">({{ c.country }})</span>
+        </div>
+        <div class="text-sm">
+            <span class="text-red-400 line-through">{{ c.old_continent }}</span>
+            <span class="text-gray-500 mx-2">→</span>
+            <span class="text-green-400 font-semibold">{{ c.new_continent }}</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="bg-green-900 border border-green-600 p-6 rounded text-center">
+    <p class="text-green-300 font-semibold text-lg">✅ ¡Todo correcto!</p>
+    <p class="text-green-200 text-sm mt-1">Todas las películas ya tienen el continente correcto según su país.</p>
+</div>
+{% endif %}
+{% else %}
+<div class="bg-green-900 border border-green-600 p-6 rounded text-center">
+    <p class="text-green-300 font-semibold text-lg">✅ Cambios aplicados</p>
+    <p class="text-green-200 text-sm mt-1">Las películas han sido actualizadas.</p>
+    <a href="/" class="inline-block mt-4 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al Inicio</a>
+</div>
+{% endif %}
+
+<a href="/" class="inline-block mt-6 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al Inicio</a>
+{% endblock %}

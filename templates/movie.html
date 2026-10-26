@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="max-w-5xl mx-auto">
+    <!-- Encabezado de la Película -->
+    <div class="flex flex-col md:flex-row gap-6 mb-8">
+        <!-- Póster -->
+        <div class="w-full md:w-1/3 flex-shrink-0">
+            {% if movie.poster_url %}
+                <img id="poster-img" src="{{ movie.poster_url }}" class="w-full aspect-[2/3] object-cover rounded-lg shadow-2xl">
+            {% else %}
+                <div class="w-full aspect-[2/3] bg-gray-800 rounded-lg flex items-center justify-center text-gray-500">Sin póster</div>
+            {% endif %}
+        </div>
+
+        <!-- Detalles -->
+        <div class="flex-1">
+            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">{{ movie.title_es }}</h1>
+            {% if movie.title_original and movie.title_original != movie.title_es %}
+                <p class="text-lg text-gray-400 italic mb-4">{{ movie.title_original }}</p>
+            {% endif %}
+
+            <div class="flex flex-wrap gap-3 text-sm text-gray-300 mb-6">
+                {% if movie.year %}<span class="bg-gray-800 px-3 py-1 rounded"> {{ movie.year }}</span>{% endif %}
+                
+                <!-- Director clickeable -->
+                {% if movie.director %}
+                <a href="/director?name={{ movie.director | urlencode }}" class="bg-gray-800 px-3 py-1 rounded hover:bg-blue-700 transition cursor-pointer" title="Ver todas las películas de {{ movie.director }}">
+                     {{ movie.director }}
+                </a>
+                {% endif %}
+                
+                {% if movie.country %}<span class="bg-gray-800 px-3 py-1 rounded"> {{ movie.country }}</span>{% endif %}
+                {% if movie.continent %}<span class="bg-gray-800 px-3 py-1 rounded">{{ movie.continent }}</span>{% endif %}
+            </div>
+
+            <!-- Sinopsis -->
+            {% if movie.synopsis %}
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold text-blue-400 mb-2">Sinopsis</h2>
+                <p class="text-gray-300 leading-relaxed whitespace-pre-line">{{ movie.synopsis }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Botones de Acción -->
+            <div class="flex flex-wrap gap-3 mt-4">
+                <a href="/edit-movie/{{ movie.id }}" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded text-sm font-medium transition">
+                     Editar ficha completa
+                </a>
+                <form action="/delete/{{ movie.id }}" method="post" onsubmit="return confirm('¿Seguro que quieres eliminar esta película?');" class="inline">
+                    <button type="submit" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-sm font-medium transition">
+                         Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reparto -->
+    {% if movie.cast %}
+    <div class="mt-8" id="cast">
+        <h2 class="text-xl font-semibold text-blue-400 mb-4">Reparto</h2>
+        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-3">
+            {% for c in movie.cast %}
+            <div class="group text-center relative">
+                
+                <!-- Construir URL de la foto -->
+                {% set photo_src = "" %}
+                {% if c.profile_path %}
+                    {% if c.profile_path is string and c.profile_path.startswith('http') %}
+                        {% set photo_src = c.profile_path %}
+                    {% else %}
+                        {% set photo_src = 'https://image.tmdb.org/t/p/w185' ~ c.profile_path %}
+                    {% endif %}
+                {% endif %}
+                
+                <!-- Contenedor de la imagen -->
+                <div class="relative">
+                    <!-- Enlace clickeable SOLO si tiene un ID válido -->
+                    {% if c.id %}
+                    <a href="/actor/{{ c.id }}" class="block">
+                        {% if photo_src %}
+                            <img src="{{ photo_src }}" 
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"
+                                 class="w-full aspect-[2/3] object-cover rounded shadow group-hover:opacity-80 group-hover:scale-105 transition duration-200" 
+                                 alt="{{ c.name }}">
+                            <div class="w-full aspect-[2/3] bg-gray-800 rounded items-center justify-center text-[10px] text-gray-400 p-1 text-center border border-gray-700 hidden">
+                                {{ c.name }}
+                            </div>
+                        {% else %}
+                            <div class="w-full aspect-[2/3] bg-gray-800 rounded flex items-center justify-center text-[10px] text-gray-400 p-1 text-center group-hover:bg-gray-700 transition border border-gray-700">
+                                {{ c.name }}
+                            </div>
+                        {% endif %}
+                    </a>
+                    {% else %}
+                        <!-- Si no tiene ID, no es clickeable, pero se muestra igual -->
+                        {% if photo_src %}
+                            <img src="{{ photo_src }}" 
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"
+                                 class="w-full aspect-[2/3] object-cover rounded shadow" 
+                                 alt="{{ c.name }}">
+                            <div class="w-full aspect-[2/3] bg-gray-800 rounded items-center justify-center text-[10px] text-gray-400 p-1 text-center border border-gray-700 hidden">
+                                {{ c.name }}
+                            </div>
+                        {% else %}
+                            <div class="w-full aspect-[2/3] bg-gray-800 rounded flex items-center justify-center text-[10px] text-gray-400 p-1 text-center border border-gray-700">
+                                {{ c.name }}
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                    
+                    <!-- Botón para eliminar foto (solo si tiene foto) -->
+                    {% if photo_src %}
+                    <form action="/remove-actor-photo" method="post" class="absolute top-1 right-1 z-10">
+                        <input type="hidden" name="actor_id" value="{{ c.id or '' }}">
+                        <input type="hidden" name="actor_name" value="{{ c.name }}">
+                        <input type="hidden" name="movie_id" value="{{ movie.id }}">
+                        <button type="submit" 
+                                onclick="return confirm('¿Quitar esta foto?')"
+                                class="bg-red-600 hover:bg-red-700 text-white rounded-full p-1 shadow-lg transition opacity-0 group-hover:opacity-100"
+                                title="Eliminar foto">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                
+                <!-- Nombre del actor -->
+                <p class="text-[11px] mt-1.5 text-gray-300 truncate font-medium">{{ c.name }}</p>
+                
+                <!-- Formulario para añadir/cambiar foto (SIEMPRE visible) -->
+                <form action="/update-actor-photo" method="post" class="mt-1">
+                    <input type="hidden" name="actor_id" value="{{ c.id or '' }}">
+                    <input type="hidden" name="actor_name" value="{{ c.name }}">
+                    <input type="hidden" name="movie_id" value="{{ movie.id }}">
+                    <input type="text" name="photo_url" 
+                           value="{{ c.profile_path if c.profile_path else '' }}"
+                           placeholder="URL de la foto..." 
+                           class="w-full bg-gray-700 text-white px-1 py-0.5 rounded text-[9px] border border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 mb-1"
+                           required>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white px-1 py-0.5 rounded text-[9px] transition">
+                        {{ '🔄 Cambiar' if c.profile_path else '📷 Añadir' }}
+                    </button>
+                </form>
+                
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<a href="/" class="inline-block mt-8 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm">Volver al Catálogo</a>
+
+{% endblock %}

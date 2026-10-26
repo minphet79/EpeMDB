@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">📋 Sinopsis en Inglés ({{ total }})</h1>
+
+<p class="text-gray-400 mb-4">
+    Copia todo el texto de abajo, pégaselo a la IA para que lo traduzca, y luego usa el botón de abajo para aplicar las traducciones.
+</p>
+
+<div class="bg-gray-900 p-4 rounded border border-gray-700 mb-4 max-h-[60vh] overflow-y-auto">
+    <pre class="text-sm text-green-400 whitespace-pre-wrap font-mono">
+{% for m in to_translate %}ID: {{ m.id }}
+Título: {{ m.title_es }} ({{ m.year or '?' }})
+Sinopsis EN: {{ m.synopsis_en }}
+---
+{% endfor %}
+    </pre>
+</div>
+
+<div class="flex gap-3">
+    <a href="/apply-translations-form" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded font-medium">
+         Aplicar Traducciones
+    </a>
+    <a href="/" class="bg-gray-600 hover:bg-gray-700 px-6 py-3 rounded">
+        Volver al Inicio
+    </a>
+</div>
+{% endblock %}

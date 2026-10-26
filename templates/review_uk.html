@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="max-w-5xl mx-auto">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Revisión: Reino Unido y Naciones</h1>
+            <p class="text-sm text-gray-400">Se encontraron {{ total }} películas para revisar.</p>
+        </div>
+        <a href="/" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm">← Volver al Inicio</a>
+    </div>
+
+    {% if movies %}
+    <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm text-left text-gray-300">
+                <thead class="text-xs text-gray-400 uppercase bg-gray-900">
+                    <tr>
+                        <th class="px-4 py-3">ID</th>
+                        <th class="px-4 py-3">Título en Español</th>
+                        <th class="px-4 py-3">Título Original</th>
+                        <th class="px-4 py-3">Año</th>
+                        <th class="px-4 py-3">País Actual</th>
+                        <th class="px-4 py-3">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in movies %}
+                    <tr class="border-b border-gray-700 hover:bg-gray-750 transition">
+                        <td class="px-4 py-3 font-mono text-gray-500">{{ m.id }}</td>
+                        <td class="px-4 py-3 font-medium text-white">{{ m.title_es or 'Sin título' }}</td>
+                        <td class="px-4 py-3 text-gray-400 italic">{{ m.title_original or '-' }}</td>
+                        <td class="px-4 py-3">{{ m.year or '?' }}</td>
+                        <td class="px-4 py-3">
+                            <span class="bg-blue-900 text-blue-300 px-2 py-1 rounded text-xs font-semibold">
+                                {{ m.country }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3">
+                            <a href="/edit-movie/{{ m.id }}" class="text-blue-400 hover:text-blue-300 text-xs underline">
+                                Editar
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="mt-6 bg-gray-800 p-4 rounded-lg border border-yellow-700">
+        <h3 class="text-yellow-400 font-semibold mb-2">💡 ¿Cómo proceder?</h3>
+        <p class="text-sm text-gray-300 mb-2">
+            Revisa esta lista. Si ves películas que deberían ser específicamente de <b>Inglaterra</b>, <b>Escocia</b>, <b>Gales</b> o <b>Irlanda del Norte</b>, anota sus <b>IDs</b>.
+        </p>
+        <p class="text-sm text-gray-300">
+            Luego, puedes decírmelo aquí en el chat (ej: "Cambia los IDs 45, 102 y 300 a Escocia") y yo te daré el comando SQL o el código para actualizarlos todos de golpe.
+        </p>
+    </div>
+    {% else %}
+    <div class="bg-gray-800 p-8 rounded-lg border border-gray-700 text-center">
+        <p class="text-gray-400 text-lg">No hay películas clasificadas como Reino Unido o sus naciones.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

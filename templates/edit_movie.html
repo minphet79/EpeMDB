@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <h1 class="text-2xl font-bold mb-2">✏️ Editar ficha completa</h1>
+    <p class="text-gray-400 mb-6">Modifica todos los campos de <b>{{ movie.title_es }}</b> ({{ movie.year or '?' }})</p>
+
+    <form action="/save-movie/{{ movie.id }}" method="post" class="space-y-4 bg-gray-800 p-6 rounded border border-gray-700">
+        
+        <!-- Títulos -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Título en español *</label>
+                <input type="text" name="title_es" value="{{ movie.title_es }}" required
+                       class="w-full bg-gray-700 px-3 py-2 rounded text-sm text-white focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Título original</label>
+                <input type="text" name="title_original" value="{{ movie.title_original or '' }}"
+                       class="w-full bg-gray-700 px-3 py-2 rounded text-sm text-white focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+
+        <!-- Año, País, Continente -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Año</label>
+                <input type="number" name="year" value="{{ movie.year or '' }}" min="1888" max="2099"
+                       class="w-full bg-gray-700 px-3 py-2 rounded text-sm text-white focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">País</label>
+                <input type="text" name="country" value="{{ movie.country or '' }}"
+                       placeholder="Ej: Estados Unidos"
+                       class="w-full bg-gray-700 px-3 py-2 rounded text-sm text-white focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Continente</label>
+                <input type="text" name="continent" value="{{ movie.continent or '' }}"
+                       placeholder="Ej: América"
+                       class="w-full bg-gray-700 px-3 py-2 rounded text-sm text-white focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+
+        <!-- Director -->
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Director</label>
+            <input type="text" name="director" value="{{ movie.director or '' }}"
+                   placeholder="Ej: Steven Spielberg"
+                   class="w-full bg-gray-700 px-3 py-2 rounded text-sm text-white focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- URL del póster -->
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">URL del póster</label>
+            <input type="url" name="poster_url" value="{{ movie.poster_url or '' }}"
+                   placeholder="https://image.tmdb.org/t/p/w500/..."
+                   class="w-full bg-gray-700 px-3 py-2 rounded text-sm text-white focus:ring-2 focus:ring-blue-500">
+            {% if movie.poster_url %}
+            <div class="mt-2 flex items-center gap-3">
+                <img src="{{ movie.poster_url }}" class="w-16 aspect-[2/3] object-cover rounded">
+                <span class="text-xs text-gray-500">Póster actual</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sinopsis -->
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Sinopsis</label>
+            <textarea name="synopsis" rows="4"
+                      class="w-full bg-gray-700 px-3 py-2 rounded text-sm text-white focus:ring-2 focus:ring-blue-500">{{ movie.synopsis or '' }}</textarea>
+        </div>
+
+        <!-- Reparto (un actor por línea) -->
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Reparto (un actor por línea)</label>
+            <textarea name="cast_text" rows="6"
+                      placeholder="Tom Hanks&#10;Tim Robbins&#10;Morgan Freeman"
+                      class="w-full bg-gray-700 px-3 py-2 rounded text-sm text-white focus:ring-2 focus:ring-blue-500 font-mono">{{ cast_text }}</textarea>
+            <p class="text-[10px] text-gray-500 mt-1">Escribe un nombre de actor por línea. Se guardarán sin foto ni enlace a TMDB.</p>
+        </div>
+
+        <!-- Info técnica -->
+<div class="bg-gray-900 p-3 rounded border border-gray-700 text-xs text-gray-500">
+    <p><b>ID interno:</b> {{ movie.id }}</p>
+    <div class="mt-2">
+        <label class="block text-xs text-yellow-400 mb-1">TMDB ID (cámbialo si los datos están mezclados):</label>
+        <input type="number" name="tmdb_id" value="{{ movie.tmdb_id or '' }}" 
+               class="w-full bg-gray-700 px-2 py-1 rounded text-xs text-white"
+               placeholder="Deja vacío si no tiene">
+    </div>
+    <p class="mt-2"><b>Plex Key:</b> {{ movie.plex_key or 'No vinculado' }}</p>
+</div>
+
+        <!-- Botones -->
+        <div class="flex flex-wrap gap-3 pt-2 border-t border-gray-700">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded font-medium">
+                💾 Guardar cambios
+            </button>
+            <a href="/movie/{{ movie.id }}" class="bg-gray-600 hover:bg-gray-700 px-6 py-2 rounded font-medium inline-block">
+                ❌ Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}

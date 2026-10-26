@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">📝 Pegar Traducciones</h1>
+
+<p class="text-gray-400 mb-4">
+    Pega aquí el texto traducido por la IA. Mantén el formato exacto:
+</p>
+
+<div class="bg-gray-800 p-4 rounded border border-gray-700 mb-4">
+    <pre class="text-xs text-gray-400 whitespace-pre-wrap font-mono">
+ID: 123
+Sinopsis ES: [traducción al español]
+---
+ID: 124
+Sinopsis ES: [traducción al español]
+---
+    </pre>
+</div>
+
+<form action="/apply-translations" method="post">
+    <textarea name="translations_text" rows="20" required
+              class="w-full bg-gray-700 text-white px-4 py-3 rounded border border-gray-600 font-mono text-sm mb-4"
+              placeholder="Pega aquí las traducciones..."></textarea>
+    
+    <button type="submit" 
+            onclick="return confirm('¿Aplicar traducciones?')"
+            class="bg-green-600 hover:bg-green-700 px-6 py-3 rounded font-medium">
+        ✅ Guardar Traducciones
+    </button>
+</form>
+
+<a href="/" class="inline-block mt-6 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al Inicio</a>
+{% endblock %}

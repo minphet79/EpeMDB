@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Películas sin póster</h1>
+<p class="text-gray-400 mb-6">Estas películas no tienen imagen. Puedes añadir una URL de póster manualmente.</p>
+
+{% if movies %}
+<div class="space-y-4">
+  {% for m in movies %}
+  <div class="bg-gray-800 p-4 rounded">
+    <div class="flex justify-between items-start mb-3">
+      <div>
+        <div class="font-semibold text-lg">{{ m.title_es }}</div>
+        <div class="text-sm text-gray-400">{{ m.year or 'Año desconocido' }}</div>
+      </div>
+    </div>
+    <form action="/update-poster/{{ m.id }}" method="post" class="flex gap-2">
+      <input name="poster_url" placeholder="URL del póster (ej: https://image.tmdb.org/t/p/w500/...)" class="flex-1 bg-gray-700 px-3 py-2 rounded" required>
+      <button class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">Guardar</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-400">¡Todas las películas tienen póster! 🎉</p>
+{% endif %}
+{% endblock %}

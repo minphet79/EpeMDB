@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Películas pendientes de añadir</h1>
+<p class="text-gray-400 mb-6">Estas películas no se encontraron automáticamente en TMDB. Puedes buscarlas manualmente o descartarlas todas.</p>
+
+{% if failed %}
+<div class="mb-4">
+  <form action="/delete-all-failed" method="post" onsubmit="return confirm('¿Descartar TODAS las películas pendientes? Se añadirán a la lista de ignoradas y no volverán a aparecer.')">
+    <button class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded text-sm">Descartar todas ({{ failed|length }})</button>
+  </form>
+</div>
+
+<div class="space-y-3">
+  {% for f in failed %}
+  <div class="bg-gray-800 p-4 rounded">
+    <div class="flex justify-between items-start mb-3">
+      <div>
+        <div class="font-semibold text-lg">{{ f.title }}</div>
+        <div class="text-sm text-gray-400">{{ f.year or 'Año desconocido' }}</div>
+      </div>
+      <div class="flex gap-2">
+        <a href="/add?query={{ f.title }}&year={{ f.year or '' }}" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm">
+          Buscar manualmente
+        </a>
+        <form action="/delete-failed/{{ f.id }}" method="post" onsubmit="return confirm('¿Eliminar de la lista?')">
+          <button class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm">Descartar</button>
+        </form>
+      </div>
+    </div>
+    
+    {% if f.summary %}
+    <div class="text-sm text-gray-300 mb-2">
+      <b>Resumen:</b> {{ f.summary[:200] }}{% if f.summary|length > 200 %}...{% endif %}
+    </div>
+    {% endif %}
+    
+    <div class="text-xs text-gray-400 space-y-1">
+      {% if f.directors %}<div><b>Director:</b> {{ f.directors }}</div>{% endif %}
+      {% if f.countries %}<div><b>País:</b> {{ f.countries }}</div>{% endif %}
+      {% if f.genres %}<div><b>Géneros:</b> {{ f.genres }}</div>{% endif %}
+      {% if f.error %}<div class="text-red-400"><b>Error:</b> {{ f.error[:100] }}</div>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-gray-400">¡No hay películas pendientes! 🎉</p>
+{% endif %}
+{% endblock %}

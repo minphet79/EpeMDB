@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Películas dudosas de tu Excel ({{ dudas|length }})</h1>
+<p class="text-gray-400 mb-6">Cada tarjeta se guarda por separado. Opciones: elegir un candidato sugerido, buscar tú en TMDB (botón morado, ahora prueba español e inglés y sin el año), ver una <b>colección/trilogía</b> con el botón 📀 y añadir sus partes por separado, crearla sin TMDB con los datos de tu Excel (botón gris), o descartarla. Lo que no guardes se queda en la lista.</p>
+{% if dudas %}
+<div class="space-y-8">
+  {% for d in dudas %}
+  <form action="/resolve-import" method="post" class="bg-gray-800 p-4 rounded border border-gray-700">
+    <input type="hidden" name="duda_id" value="{{ d.id }}">
+    <div class="font-semibold text-lg">{{ d.titulo }} ({{ d.year or '?' }})</div>
+    <div class="text-sm text-gray-400 mb-3">
+      {% if d.titulo_original %}Original: {{ d.titulo_original }} · {% endif %}
+      {% if d.director %}Director: {{ d.director }} · {% endif %}
+      {% if d.pais %}{{ d.pais }}{% endif %}
+    </div>
+
+    <div id="zona-{{ d.id }}">
+      {% if d.candidatos %}
+      <div class="mb-2">
+        {% for c in d.candidatos %}
+        <div class="w-20 text-center align-top inline-block mx-1 mb-2">
+          <div class="relative">
+            {% if c.poster_path %}
+              <img src="https://image.tmdb.org/t/p/w92{{ c.poster_path }}" class="w-20 aspect-[2/3] object-cover rounded">
+            {% else %}
+              <div class="w-20 aspect-[2/3] bg-gray-700 rounded flex items-center justify-center text-xs text-gray-400">Sin img</div>
+            {% endif %}
+            <span class="absolute top-1 left-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded font-bold">{{ loop.index }}</span>
+          </div>
+          <div class="text-[10px] leading-tight mt-1 truncate" title="{{ c.title }}">{{ c.title }}</div>
+          <div class="text-[10px] text-gray-500">{{ c.release_date[:4] if c.release_date else '?' }}</div>
+          <button type="button" hx-get="/tmdb-coleccion?duda={{ d.id }}&tmdb_id={{ c.id }}" hx-target="#col-{{ d.id }}-{{ c.id }}" hx-swap="innerHTML" class="mt-1 text-[10px] bg-purple-700 hover:bg-purple-600 px-1.5 py-0.5 rounded">📀 colección</button>
+          <div id="col-{{ d.id }}-{{ c.id }}" class="mt-1"></div>
+        </div>
+        {% endfor %}
+      </div>
+      <select name="decision" class="bg-gray-700 px-2 py-2 rounded text-sm w-full">
+        <option value="{{ d.id }}:">— No tocar por ahora —</option>
+        <option value="{{ d.id }}:discard">❌ Descartar (no importar)</option>
+        {% for c in d.candidatos %}
+        <option value="{{ d.id }}:{{ c.id }}">{{ loop.index }}. {{ c.title }} ({{ c.release_date[:4] if c.release_date else '?' }}){% if c.original_title and c.original_title != c.title %} · {{ c.original_title }}{% endif %}</option>
+        {% endfor %}
+      </select>
+      {% else %}
+      <p class="text-sm text-gray-500 mb-2">No hay candidatos sugeridos. Busca tú en TMDB (prueba el título original en inglés) o añádela sin TMDB.</p>
+      <select name="decision" class="bg-gray-700 px-2 py-2 rounded text-sm w-full">
+        <option value="{{ d.id }}:">— No tocar por ahora —</option>
+        <option value="{{ d.id }}:discard">❌ Descartar (no importar)</option>
+      </select>
+      {% endif %}
+    </div>
+
+    <div class="mt-3 flex gap-2">
+      <input id="q-{{ d.id }}" name="q" type="text" placeholder="Buscar en TMDB (español o inglés, con o sin año)..." class="flex-1 bg-gray-700 px-2 py-1 rounded text-sm text-white">
+      <input id="y-{{ d.id }}" name="y" type="hidden" value="{{ d.year or '' }}">
+      <button type="button"
+              hx-get="/tmdb-buscar?duda={{ d.id }}"
+              hx-include="#q-{{ d.id }},#y-{{ d.id }}"
+              hx-target="#zona-{{ d.id }}"
+              hx-swap="innerHTML"
+              class="bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded text-sm whitespace-nowrap">Buscar en TMDB</button>
+    </div>
+
+    <div class="mt-3 flex flex-wrap gap-2">
+      <button type="submit" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm">Guardar esta decisión</button>
+      <button type="submit" formaction="/add-manual" class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded text-sm">Añadir sin TMDB (datos del Excel)</button>
+    </div>
+  </form>
+  {% endfor %}
+</div>
+{% else %}
+<div class="bg-green-900 border border-green-600 p-4 rounded">
+  <p class="text-green-300 font-semibold">No hay películas dudosas pendientes.</p>
+</div>
+{% endif %}
+<a href="/" class="inline-block mt-6 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al inicio</a>
+{% endblock %}

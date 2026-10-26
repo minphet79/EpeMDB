@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex flex-col md:flex-row gap-6">
+  <div class="w-full md:w-64 flex-shrink-0">
+    {% if actor_photo %}
+      <img src="{{ actor_photo }}" class="w-full rounded shadow-lg">
+    {% else %}
+      <div class="w-full aspect-[2/3] bg-gray-700 rounded flex items-center justify-center text-gray-400">Sin foto</div>
+    {% endif %}
+  </div>
+  <div class="flex-1">
+    <h1 class="text-3xl font-bold mb-4">{{ actor_name }}</h1>
+    <h2 class="text-xl font-semibold mb-3 text-gray-300">Películas en tu colección:</h2>
+    {% if actor_movies %}
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {% for m in actor_movies %}
+        <a href="/movie/{{ m.id }}" class="bg-gray-800 rounded overflow-hidden hover:scale-105 transition">
+          <img src="{{ m.poster_url or 'https://via.placeholder.com/300x450?text=Sin+Poster' }}" class="w-full aspect-[2/3] object-cover">
+          <div class="p-2">
+            <div class="font-semibold text-sm truncate">{{ m.title_es }}</div>
+            <div class="text-xs text-gray-400">{{ m.year or '' }}</div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-gray-400">No hay películas de este actor en tu colección.</p>
+    {% endif %}
+    <a href="/" class="inline-block mt-6 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al inicio</a>
+  </div>
+</div>
+{% endblock %}

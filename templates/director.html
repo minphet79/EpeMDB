@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-3xl font-bold mb-2">🎥 {{ director_name }}</h1>
+<p class="text-gray-400 mb-6">{{ movies|length }} película{{ 's' if movies|length != 1 else '' }} en tu colección</p>
+
+{% if movies %}
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+    {% for m in movies %}
+    <a href="/movie/{{ m.id }}" class="group block">
+        <div class="relative">
+            {% if m.poster_url %}
+                <img src="{{ m.poster_url }}" alt="{{ m.title_es }}" class="w-full aspect-[2/3] object-cover rounded shadow-lg group-hover:opacity-80 transition">
+            {% else %}
+                <div class="w-full aspect-[2/3] bg-gray-700 rounded flex items-center justify-center text-xs text-gray-500">Sin póster</div>
+            {% endif %}
+        </div>
+        <div class="mt-2">
+            <h3 class="text-sm font-semibold text-white leading-tight truncate group-hover:text-blue-400 transition">{{ m.title_es }}</h3>
+            <p class="text-xs text-gray-500">{{ m.year or '?' }}</p>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="bg-gray-800 p-8 rounded text-center">
+    <p class="text-gray-400">No se encontraron películas de este director.</p>
+</div>
+{% endif %}
+
+<a href="/" class="inline-block mt-6 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al Inicio</a>
+{% endblock %}

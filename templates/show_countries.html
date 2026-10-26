@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">🌍 Países en tu colección</h1>
+<p class="text-gray-400 mb-6">Total: {{ countries|length }} países únicos</p>
+
+<div class="space-y-2 max-h-[75vh] overflow-y-auto pr-2">
+    {% for c in countries %}
+    <div class="bg-gray-800 p-3 rounded border border-gray-700 flex justify-between items-center">
+        <div>
+            <span class="font-semibold text-white">{{ c.country }}</span>
+            <span class="text-xs text-gray-400 ml-2">({{ c.count }} películas)</span>
+        </div>
+        <div class="text-sm">
+            {% if c.continent %}
+                <span class="text-green-400">{{ c.continent }}</span>
+            {% else %}
+                <span class="text-red-400">⚠️ Sin clasificar</span>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="mt-6 flex gap-3">
+    <a href="/auto-classify-all?dry_run=true" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">🔍 Ver qué cambiaría</a>
+    <a href="/" class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al Inicio</a>
+</div>
+{% endblock %}

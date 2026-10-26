@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-bold mb-6 text-white">Resultados de búsqueda</h1>
+    
+    <!-- Formulario para nueva búsqueda -->
+    <form method="POST" action="/search" class="flex flex-col sm:flex-row gap-3 mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700">
+        <div class="flex-1">
+            <label class="block text-xs text-gray-400 mb-1">Título</label>
+            <input type="text" name="query" required placeholder="Ej: Blade Runner" 
+                   value="{{ query or '' }}"
+                   class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="w-full sm:w-32">
+            <label class="block text-xs text-gray-400 mb-1">Año (opcional)</label>
+            <input type="text" name="year" placeholder="1982" 
+                   value="{{ year or '' }}"
+                   class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded text-sm font-medium transition">
+                🔍 Buscar
+            </button>
+        </div>
+    </form>
+
+    <!-- Resultados -->
+    {% if results %}
+    <h2 class="text-lg font-semibold text-blue-400 mb-4">{{ results|length }} resultado{{ 's' if results|length != 1 else '' }}</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {% for r in results %}
+        <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 flex gap-4 hover:border-blue-600 transition">
+            <div class="flex-shrink-0">
+                {% if r.poster_path %}
+                    <img src="https://image.tmdb.org/t/p/w185{{ r.poster_path }}" 
+                         class="w-20 aspect-[2/3] object-cover rounded shadow"
+                         loading="lazy">
+                {% else %}
+                    <div class="w-20 aspect-[2/3] bg-gray-700 rounded flex items-center justify-center text-[10px] text-gray-500">Sin img</div>
+                {% endif %}
+            </div>
+            <div class="flex-1 min-w-0">
+                <h3 class="text-sm font-semibold text-white leading-tight mb-1">
+                    {{ r.title or r.original_title or '?' }}
+                </h3>
+                {% if r.original_title and r.original_title != r.title %}
+                    <p class="text-[10px] text-gray-500 italic truncate">{{ r.original_title }}</p>
+                {% endif %}
+                <p class="text-xs text-gray-400 mt-1">
+                    📅 {{ (r.release_date or '')[:4] or 'Año desconocido' }}
+                </p>
+                <a href="/import/{{ r.id }}" 
+                   class="inline-block mt-3 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-medium transition">
+                    ✅ Añadir
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-gray-800 p-8 rounded-lg border border-gray-700 text-center">
+        <p class="text-gray-400 text-lg">❌ No se encontraron resultados</p>
+    </div>
+    {% endif %}
+    
+    <a href="/" class="inline-block mt-8 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm">← Volver al Catálogo</a>
+</div>
+
+{% endblock %}
