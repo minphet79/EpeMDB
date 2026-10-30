@@ -105,8 +105,14 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
 
 def count_movies(q="", continent="", country="", director=""):
     with db() as conn:
+        query = "SELECT * FROM movies WHERE 1=1"
+        params = []
+        if continent: query += " AND continent = ?"; params.append(continent)
+        if country: query += " AND country = ?"; params.append(country)
+        if director: query += " AND director = ?"; params.append(director)
+
         if q:
-            rows = conn.execute("SELECT title_es, title_original, director FROM movies").fetchall()
+            rows = conn.execute(query, params).fetchall()
             q_norm = normalize_title(q)
             count = 0
             for r in rows:
@@ -117,12 +123,12 @@ def count_movies(q="", continent="", country="", director=""):
                     count += 1
             return count
         else:
-            query = "SELECT COUNT(*) FROM movies WHERE 1=1"
-            params = []
-            if continent: query += " AND continent = ?"; params.append(continent)
-            if country: query += " AND country = ?"; params.append(country)
-            if director: query += " AND director = ?"; params.append(director)
-            return conn.execute(query, params).fetchone()[0]
+            count_query = "SELECT COUNT(*) FROM movies WHERE 1=1"
+            count_params = []
+            if continent: count_query += " AND continent = ?"; count_params.append(continent)
+            if country: count_query += " AND country = ?"; count_params.append(country)
+            if director: count_query += " AND director = ?"; count_params.append(director)
+            return conn.execute(count_query, count_params).fetchone()[0]
 
 def get_movie(movie_id):
     with db() as conn:
