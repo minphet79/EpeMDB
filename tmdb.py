@@ -205,6 +205,7 @@ async def get_series_details(tmdb_id: int) -> dict:
     return {
         "tmdb_id": data_en["id"], "name": name_es, "name_original": data_en.get("original_name"),
         "first_air_date": data_en.get("first_air_date"), "country": country, "category": "",
+        "creator": main_director,
         "cast": cast, "synopsis": synopsis, "poster_url": poster,
         "seasons": data_en.get("number_of_seasons", 0), "episodes": data_en.get("number_of_episodes", 0)
     }
