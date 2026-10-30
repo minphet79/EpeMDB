@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <a href="/serie/{{ serie.id }}" class="inline-flex items-center text-gray-400 hover:text-white mb-6">← Volver a la serie</a>
+    <h1 class="text-2xl font-bold mb-6 text-white">Editar Serie</h1>
+    
+    <form method="POST" action="/save-serie/{{ serie.id }}" class="bg-gray-800 p-6 rounded-lg border border-gray-700 space-y-4">
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Título en Español</label>
+                <input type="text" name="name" value="{{ serie.name or '' }}" class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Título Original</label>
+                <input type="text" name="name_original" value="{{ serie.name_original or '' }}" class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Año de estreno</label>
+                <input type="text" name="first_air_date" value="{{ serie.first_air_date or '' }}" placeholder="AAAA-MM-DD" class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">País</label>
+                <input type="text" name="country" value="{{ serie.country or '' }}" class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Categoría Especial</label>
+                <select name="category" class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
+                    <option value="">Ninguna</option>
+                    {% for cat in categories %}
+                        <option value="{{ cat }}" {% if serie.category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Creador / Showrunner</label>
+                <input type="text" name="creator" value="{{ serie.creator or '' }}" class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Temporadas</label>
+                <input type="number" name="seasons" value="{{ serie.seasons or 0 }}" class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Episodios</label>
+                <input type="number" name="episodes" value="{{ serie.episodes or 0 }}" class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">URL del Póster</label>
+            <input type="text" name="poster_url" value="{{ serie.poster_url or '' }}" class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Sinopsis</label>
+            <textarea name="synopsis" rows="4" class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">{{ serie.synopsis or '' }}</textarea>
+        </div>
+
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Reparto (un actor por línea)</label>
+            <textarea name="cast_text" rows="6" class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500 font-mono text-sm">{{ cast_text }}</textarea>
+            <p class="text-[10px] text-gray-500 mt-1">Si la serie tiene ID de TMDB, al guardar se intentará actualizar el reparto automáticamente.</p>
+        </div>
+
+        <input type="hidden" name="tmdb_id" value="{{ serie.tmdb_id or '' }}">
+
+        <div class="flex gap-3 pt-4">
+            <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded font-medium transition">💾 Guardar Cambios</button>
+            <a href="/serie/{{ serie.id }}" class="flex-1 text-center bg-gray-600 hover:bg-gray-700 text-white py-2 rounded font-medium transition">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
