@@ -73,17 +73,6 @@
             </select>
         </div>
 
-        <!-- Creador (equivalente a Director) -->
-        <div class="min-w-0">
-            <label class="block text-xs text-gray-400 mb-1">Creador</label>
-            <select name="creator" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-2 sm:px-3 py-2 rounded text-xs sm:text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                <option value="">Todos</option>
-                {% for d in creators %}
-                <option value="{{ d }}" {% if creator == d %}selected{% endif %}>{{ d }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
         <!-- Ordenamiento -->
         <div class="min-w-0">
             <label class="block text-xs text-gray-400 mb-1">Ordenar por</label>
@@ -218,7 +207,7 @@
 {% if total_pages > 1 %}
 <div class="flex justify-center items-center gap-2 my-8 flex-wrap">
     {% if page > 1 %}
-    <a href="/series?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&category={{ category }}&continent={{ continent }}&country={{ country }}&creator={{ creator }}&q={{ q }}" 
+    <a href="/series?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&category={{ category }}&continent={{ continent }}&country={{ country }}&q={{ q }}" 
        class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">← Anterior</a>
     {% endif %}
     
@@ -226,7 +215,7 @@
         {% if p == page %}
         <span class="px-4 py-2 bg-blue-600 text-white rounded font-bold">{{ p }}</span>
         {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
-        <a href="/series?page={{ p }}&per_page={{ per_page }}&sort={{ sort }}&category={{ category }}&continent={{ continent }}&country={{ country }}&creator={{ creator }}&q={{ q }}" 
+        <a href="/series?page={{ p }}&per_page={{ per_page }}&sort={{ sort }}&category={{ category }}&continent={{ continent }}&country={{ country }}&q={{ q }}" 
            class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">{{ p }}</a>
         {% elif p == page - 3 or p == page + 3 %}
         <span class="px-2 py-2 text-gray-400">...</span>
@@ -234,7 +223,7 @@
     {% endfor %}
     
     {% if page < total_pages %}
-    <a href="/series?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&category={{ category }}&continent={{ continent }}&country={{ country }}&creator={{ creator }}&q={{ q }}" 
+    <a href="/series?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&category={{ category }}&continent={{ continent }}&country={{ country }}&q={{ q }}" 
        class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">Siguiente →</a>
     {% endif %}
 </div>
