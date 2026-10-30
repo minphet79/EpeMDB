@@ -19,6 +19,44 @@ def db():
     finally:
         conn.close()
 
+def migrate_sqlite_to_postgres():
+    import sqlite3
+    sqlite_path = os.path.join(os.path.dirname(__file__), "data", "movies.db")
+    if not os.path.exists(sqlite_path):
+        return
+
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM movies")
+            if cur.fetchone()['count'] > 0:
+                print("La base de datos en la nube ya tiene datos, omitiendo migración.")
+                return
+
+    print("Iniciando migración de películas desde el archivo local...")
+    sqlite_conn = sqlite3.connect(sqlite_path)
+    sqlite_conn.row_factory = sqlite3.Row
+    sqlite_cur = sqlite_conn.cursor()
+    sqlite_cur.execute("SELECT * FROM movies")
+    rows = sqlite_cur.fetchall()
+
+    with db() as conn:
+        with conn.cursor() as cur:
+            for row in rows:
+                try:
+                    cur.execute("""
+                        INSERT INTO movies (tmdb_id, title_es, title_original, year, country, continent, director, "cast", synopsis, poster_url)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (tmdb_id) DO NOTHING
+                    """, (
+                        row['tmdb_id'], row['title_es'], row['title_original'], row['year'],
+                        row['country'], row['continent'], row['director'], row['cast'],
+                        row['synopsis'], row['poster_url']
+                    ))
+                except Exception as e:
+                    print(f"Error migrando fila {row['id']}: {e}")
+    sqlite_conn.close()
+    print("¡Migración terminada!")
+
 def init_db():
     with db() as conn:
         with conn.cursor() as cur:
@@ -37,6 +75,7 @@ def init_db():
                 id SERIAL PRIMARY KEY, titulo TEXT, titulo_original TEXT,
                 year TEXT, pais TEXT, continente TEXT, director TEXT, candidatos TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    migrate_sqlite_to_postgres()
 
 def normalize_title(t):
     if not t: return ""
