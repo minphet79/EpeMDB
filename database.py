@@ -72,7 +72,7 @@ def get_continent_by_country(country):
 
 def get_continents_list(): return CONTINENTES_VALIDOS
 
-def list_movies(q="", sort="added_desc", continent="", country="", director=""):
+def list_movies(q="", sort="added_desc", continent="", country="", director="", offset=0, limit=100):
     with db() as conn:
         query = "SELECT * FROM movies WHERE 1=1"
         params = []
@@ -80,24 +80,35 @@ def list_movies(q="", sort="added_desc", continent="", country="", director=""):
         if country: query += " AND country = ?"; params.append(country)
         if director: query += " AND director = ?"; params.append(director)
         
-        # TRUCO: Si no hay búsqueda ni filtros, solo cargamos 100 películas para que sea instantáneo y no dé timeout
-        if not q and not continent and not country and not director:
-            query += " ORDER BY id DESC LIMIT 100"
+        if q:
             rows = conn.execute(query, params).fetchall()
             movies = [dict(r) for r in rows]
+            q_norm = normalize_title(q)
+            movies = [m for m in movies if q_norm in normalize_title(m.get("title_es", "")) or q_norm in normalize_title(m.get("title_original", "")) or q_norm in normalize_title(m.get("director", ""))]
         else:
+            query += f" ORDER BY id DESC LIMIT {limit} OFFSET {offset}"
             rows = conn.execute(query, params).fetchall()
             movies = [dict(r) for r in rows]
-    
-    if q:
-        q_norm = normalize_title(q)
-        movies = [m for m in movies if q_norm in normalize_title(m.get("title_es", "")) or q_norm in normalize_title(m.get("title_original", "")) or q_norm in normalize_title(m.get("director", ""))]
     
     if sort == "year_asc": movies.sort(key=lambda x: (x.get("year") or 0, normalize_title(x.get("title_original") or "")))
     elif sort == "year_desc": movies.sort(key=lambda x: (-(x.get("year") or 0), normalize_title(x.get("title_original") or "")))
     elif sort == "title_es": movies.sort(key=lambda x: normalize_title(x.get("title_es") or ""))
     else: movies.sort(key=lambda x: x.get("id", 0), reverse=True)
     return movies
+
+def count_movies(q="", continent="", country="", director=""):
+    with db() as conn:
+        query = "SELECT COUNT(*) FROM movies WHERE 1=1"
+        params = []
+        if continent: query += " AND continent = ?"; params.append(continent)
+        if country: query += " AND country = ?"; params.append(country)
+        if director: query += " AND director = ?"; params.append(director)
+        if q:
+            rows = conn.execute(query, params).fetchall()
+            count = len([r for r in rows if any(q.lower() in normalize_title(str(v)) for v in r.values())])
+        else:
+            count = conn.execute(query, params).fetchone()[0]
+    return count
 
 def get_movie(movie_id):
     with db() as conn:
