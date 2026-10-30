@@ -86,7 +86,6 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
             q_norm = normalize_title(q)
             movies = [m for m in movies if q_norm in normalize_title(m.get("title_es", "")) or q_norm in normalize_title(m.get("title_original", "")) or q_norm in normalize_title(m.get("director", ""))]
         else:
-            # La ordenación se hace AQUÍ, en la base de datos, sobre TODA la colección
             if sort == "year_asc":
                 query += " ORDER BY year ASC, title_original ASC"
             elif sort == "year_desc":
@@ -106,17 +105,24 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
 
 def count_movies(q="", continent="", country="", director=""):
     with db() as conn:
-        query = "SELECT COUNT(*) FROM movies WHERE 1=1"
-        params = []
-        if continent: query += " AND continent = ?"; params.append(continent)
-        if country: query += " AND country = ?"; params.append(country)
-        if director: query += " AND director = ?"; params.append(director)
         if q:
-            rows = conn.execute(query, params).fetchall()
-            count = len([r for r in rows if any(q.lower() in normalize_title(str(v)) for v in r.values())])
+            rows = conn.execute("SELECT title_es, title_original, director FROM movies").fetchall()
+            q_norm = normalize_title(q)
+            count = 0
+            for r in rows:
+                t_es = r["title_es"] or ""
+                t_orig = r["title_original"] or ""
+                t_dir = r["director"] or ""
+                if q_norm in normalize_title(t_es) or q_norm in normalize_title(t_orig) or q_norm in normalize_title(t_dir):
+                    count += 1
+            return count
         else:
-            count = conn.execute(query, params).fetchone()[0]
-    return count
+            query = "SELECT COUNT(*) FROM movies WHERE 1=1"
+            params = []
+            if continent: query += " AND continent = ?"; params.append(continent)
+            if country: query += " AND country = ?"; params.append(country)
+            if director: query += " AND director = ?"; params.append(director)
+            return conn.execute(query, params).fetchone()[0]
 
 def get_movie(movie_id):
     with db() as conn:
