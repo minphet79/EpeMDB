@@ -406,29 +406,36 @@ async def confirm_reidentify(request: Request, series_id: int, new_tmdb_id: int)
     s = db.get_series(series_id)
     if not s: return HTMLResponse("Serie no encontrada", status_code=404)
     
-    # Obtener datos frescos del nuevo TMDB ID
-    new_data = await tmdb.get_series_details(new_tmdb_id)
-    if not new_data: return HTMLResponse("No se pudo obtener la nueva serie de TMDB", status_code=500)
-    
-    # Actualizar la serie en la base de datos con los nuevos datos
-    new_data["category"] = s.get("category", "")  # Mantener la categoría que el usuario haya asignado
-    db.insert_series(new_data)  # insert_series usa ON CONFLICT, pero actualizamos por ID manualmente
-    
-    # Forzar actualización por ID (no por tmdb_id) para no tocar otras series
     with db.db() as conn:
         with conn.cursor() as cur:
+            # 1. Verificar si el nuevo tmdb_id ya existe en la BD
+            cur.execute("SELECT id FROM series WHERE tmdb_id = %s", (new_tmdb_id,))
+            existing_row = cur.fetchone()
+            
+            if existing_row:
+                # ¡La serie correcta ya existe! Simplemente borramos la entrada incorrecta.
+                cur.execute("DELETE FROM series WHERE id = %s", (series_id,))
+                conn.commit()
+                return RedirectResponse("/series", status_code=303)
+            
+            # 2. Si no existe, obtenemos los datos frescos y actualizamos la entrada incorrecta
+            new_data = await tmdb.get_series_details(new_tmdb_id)
+            if not new_data: return HTMLResponse("No se pudo obtener la nueva serie de TMDB", status_code=500)
+            
+            new_data["category"] = s.get("category", "")  # Mantener la categoría que el usuario haya asignado
+            
             cur.execute("""
                 UPDATE series SET 
                     tmdb_id = %(tmdb_id)s, name = %(name)s, name_original = %(name_original)s,
                     first_air_date = %(first_air_date)s, country = %(country)s, synopsis = %(synopsis)s,
                     poster_url = %(poster_url)s, seasons = %(seasons)s, episodes = %(episodes)s,
-                    "cast" = %(cast)s, creator = %(creator)s
+                    "cast" = %(cast)s, creator = %(creator)s, category = %(category)s
                 WHERE id = %(series_id)s
             """, {
                 **new_data,
                 "cast": json.dumps(new_data.get("cast") or [], ensure_ascii=False),
                 "series_id": series_id
             })
-        conn.commit()
-    
+            conn.commit()
+            
     return RedirectResponse(f"/serie/{series_id}", status_code=303)
