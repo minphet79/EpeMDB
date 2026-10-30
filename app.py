@@ -381,3 +381,54 @@ async def save_serie(
             })
         conn.commit()
     return RedirectResponse(f"/serie/{series_id}", status_code=303)
+
+# === RUTAS PARA RE-IDENTIFICAR SERIES EN TMDB ===
+
+@app.get("/reidentify-serie/{series_id}", response_class=HTMLResponse)
+async def reidentify_serie_form(request: Request, series_id: int):
+    s = db.get_series(series_id)
+    if not s: return HTMLResponse("Serie no encontrada", status_code=404)
+    return templates.TemplateResponse("reidentify_serie.html", {
+        "request": request, "serie": s, "results": None, "query": ""
+    })
+
+@app.post("/reidentify-serie/{series_id}", response_class=HTMLResponse)
+async def reidentify_serie_search(request: Request, series_id: int, query: str = Form(...), year: str = Form("")):
+    s = db.get_series(series_id)
+    if not s: return HTMLResponse("Serie no encontrada", status_code=404)
+    results = await tmdb.search_series(query, int(year) if year.isdigit() else None)
+    return templates.TemplateResponse("reidentify_serie.html", {
+        "request": request, "serie": s, "results": results, "query": query
+    })
+
+@app.get("/confirm-reidentify/{series_id}/{new_tmdb_id}", response_class=HTMLResponse)
+async def confirm_reidentify(request: Request, series_id: int, new_tmdb_id: int):
+    s = db.get_series(series_id)
+    if not s: return HTMLResponse("Serie no encontrada", status_code=404)
+    
+    # Obtener datos frescos del nuevo TMDB ID
+    new_data = await tmdb.get_series_details(new_tmdb_id)
+    if not new_data: return HTMLResponse("No se pudo obtener la nueva serie de TMDB", status_code=500)
+    
+    # Actualizar la serie en la base de datos con los nuevos datos
+    new_data["category"] = s.get("category", "")  # Mantener la categoría que el usuario haya asignado
+    db.insert_series(new_data)  # insert_series usa ON CONFLICT, pero actualizamos por ID manualmente
+    
+    # Forzar actualización por ID (no por tmdb_id) para no tocar otras series
+    with db.db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE series SET 
+                    tmdb_id = %(tmdb_id)s, name = %(name)s, name_original = %(name_original)s,
+                    first_air_date = %(first_air_date)s, country = %(country)s, synopsis = %(synopsis)s,
+                    poster_url = %(poster_url)s, seasons = %(seasons)s, episodes = %(episodes)s,
+                    "cast" = %(cast)s, creator = %(creator)s
+                WHERE id = %(series_id)s
+            """, {
+                **new_data,
+                "cast": json.dumps(new_data.get("cast") or [], ensure_ascii=False),
+                "series_id": series_id
+            })
+        conn.commit()
+    
+    return RedirectResponse(f"/serie/{series_id}", status_code=303)
