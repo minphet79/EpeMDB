@@ -1,6 +1,7 @@
 import json
 import os
 import unicodedata
+import sqlite3
 import psycopg
 from psycopg.rows import dict_row
 from contextlib import contextmanager
@@ -20,7 +21,6 @@ def db():
         conn.close()
 
 def migrate_sqlite_to_postgres():
-    import sqlite3
     sqlite_path = os.path.join(os.path.dirname(__file__), "data", "movies.db")
     if not os.path.exists(sqlite_path):
         return
@@ -192,14 +192,14 @@ def get_distinct_values(field):
     with db() as conn:
         with conn.cursor() as cur:
             cur.execute(f"SELECT DISTINCT {field} FROM movies WHERE {field} IS NOT NULL AND {field} != '' ORDER BY {field}")
-            return [r[0] for r in cur.fetchall()]
+            return [r[field] for r in cur.fetchall()]
 
 def get_countries_by_continent(continent):
     if not continent: return get_distinct_values("country")
     with db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT DISTINCT country FROM movies WHERE continent = %s AND country IS NOT NULL AND country != '' ORDER BY country", (continent,))
-            return [r[0] for r in cur.fetchall()]
+            return [r['country'] for r in cur.fetchall()]
 
 def get_movies_without_poster():
     with db() as conn:
