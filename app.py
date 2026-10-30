@@ -233,14 +233,37 @@ async def save_movie(movie_id: int, title_es: str = Form(""), title_original: st
 
 @app.get("/actor/{actor_id}", response_class=HTMLResponse)
 async def actor_detail(request: Request, actor_id: int):
-    actor_movies, actor_name, actor_photo = [], "Desconocido", None
+    actor_movies, actor_series, actor_name, actor_photo = [], [], "Desconocido", None
+    
+    # Buscar en películas
     for m in db.list_movies(limit=10000):
         for c in (json.loads(m["cast"]) if m["cast"] else []):
             if isinstance(c, dict) and c.get("id") == actor_id:
-                actor_movies.append(m); actor_name = c.get("name", "Desconocido")
-                if c.get("profile_path"): actor_photo = f"https://image.tmdb.org/t/p/w300{c['profile_path']}" if not c['profile_path'].startswith('http') else c['profile_path']
+                actor_movies.append(m)
+                if not actor_name or actor_name == "Desconocido":
+                    actor_name = c.get("name", "Desconocido")
+                if c.get("profile_path") and not actor_photo:
+                    actor_photo = f"https://image.tmdb.org/t/p/w300{c['profile_path']}" if not c['profile_path'].startswith('http') else c['profile_path']
                 break
-    return templates.TemplateResponse("actor.html", {"request": request, "actor_name": actor_name, "actor_photo": actor_photo, "movies": actor_movies})
+    
+    # Buscar en series
+    for s in db.list_series(limit=10000):
+        for c in (json.loads(s["cast"]) if s["cast"] else []):
+            if isinstance(c, dict) and c.get("id") == actor_id:
+                actor_series.append(s)
+                if not actor_name or actor_name == "Desconocido":
+                    actor_name = c.get("name", "Desconocido")
+                if c.get("profile_path") and not actor_photo:
+                    actor_photo = f"https://image.tmdb.org/t/p/w300{c['profile_path']}" if not c['profile_path'].startswith('http') else c['profile_path']
+                break
+    
+    return templates.TemplateResponse("actor.html", {
+        "request": request, 
+        "actor_name": actor_name, 
+        "actor_photo": actor_photo, 
+        "movies": actor_movies,
+        "series": actor_series
+    })
 
 @app.post("/update-actor-photo")
 async def update_actor_photo(request: Request, actor_id: str = Form(""), actor_name: str = Form(""), photo_url: str = Form(...), movie_id: int = Form(...)):
