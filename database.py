@@ -75,6 +75,11 @@ def init_db():
                 id SERIAL PRIMARY KEY, titulo TEXT, titulo_original TEXT,
                 year TEXT, pais TEXT, continente TEXT, director TEXT, candidatos TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS series (
+                id SERIAL PRIMARY KEY, tmdb_id INTEGER UNIQUE, name TEXT,
+                name_original TEXT, first_air_date TEXT, country TEXT, 
+                category TEXT, "cast" TEXT DEFAULT '[]', synopsis TEXT, 
+                poster_url TEXT, seasons INTEGER DEFAULT 0, episodes INTEGER DEFAULT 0)""")
     migrate_sqlite_to_postgres()
 
 def normalize_title(t):
