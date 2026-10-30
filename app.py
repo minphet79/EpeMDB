@@ -38,7 +38,7 @@ async def api_search_live(q: str = ""):
     q_clean = normalize_search(q)
     if len(q_clean) < 1: return JSONResponse([])
     results, seen_ids = [], set()
-    all_movies = db.list_movies()
+    all_movies = db.list_movies(q=q, limit=10000)
     for m in all_movies:
         if m["id"] in seen_ids: continue
         title_es_norm = normalize_search(m.get("title_es", ""))
