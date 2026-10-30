@@ -22,15 +22,18 @@
                 <div class="flex flex-wrap items-center gap-3 mb-4">
                     <h1 class="text-3xl md:text-4xl font-bold text-white">{{ serie.name }}</h1>
                     {% if serie.category %}
-                        <span class="bg-blue-600 text-white text-sm px-3 py-1 rounded-full font-semibold">{{ serie.category }}</span>
+                        <span class="bg-purple-600 text-white text-sm px-3 py-1 rounded-full font-semibold">{{ serie.category }}</span>
                     {% endif %}
                 </div>
 
                 <p class="text-xl text-gray-300 mb-2 italic">{{ serie.name_original or '' }}</p>
                 
                 <div class="flex flex-wrap gap-4 text-sm text-gray-400 mb-6">
-                    <span>📅 {{ serie.first_air_date or 'Desconocido' }}</span>
+                    <span>📅 {{ serie.first_air_date[:4] if serie.first_air_date else 'Desconocido' }}</span>
                     <span>🌍 {{ serie.country or 'Desconocido' }}</span>
+                    {% if serie.creator %}
+                        <span>👤 {{ serie.creator }}</span>
+                    {% endif %}
                     <span>📺 {{ serie.seasons or 0 }} Temporadas</span>
                     <span>🎬 {{ serie.episodes or 0 }} Episodios</span>
                 </div>
@@ -52,6 +55,13 @@
                         </div>
                     </div>
                 {% endif %}
+
+                <!-- Botón de Edición -->
+                <div class="mt-8 pt-6 border-t border-gray-700">
+                    <a href="/edit-serie/{{ serie.id }}" class="inline-flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded font-medium transition">
+                        ✏️ Editar datos de la serie
+                    </a>
+                </div>
             </div>
         </div>
     </div>
