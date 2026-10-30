@@ -352,13 +352,14 @@ def delete_import_duda(duda_id):
 
 # === FUNCIONES PARA SERIES ===
 
-def list_series(q="", sort="added_desc", category="", country="", offset=0, limit=20):
+def list_series(q="", sort="added_desc", category="", country="", creator="", offset=0, limit=20):
     with db() as conn:
         with conn.cursor() as cur:
             query = "SELECT * FROM series WHERE 1=1"
             params = []
             if category: query += " AND category = %s"; params.append(category)
             if country: query += " AND country = %s"; params.append(country)
+            if creator: query += " AND creator = %s"; params.append(creator)    
 
             if q:
                 cur.execute(query, params)
@@ -384,13 +385,14 @@ def list_series(q="", sort="added_desc", category="", country="", offset=0, limi
 
     return series
 
-def count_series(q="", category="", country=""):
+def count_series(q="", category="", country="", creator=""):
     with db() as conn:
         with conn.cursor() as cur:
             query = "SELECT * FROM series WHERE 1=1"
             params = []
             if category: query += " AND category = %s"; params.append(category)
             if country: query += " AND country = %s"; params.append(country)
+            if creator: query += " AND creator = %s"; params.append(creator)
 
             if q:
                 cur.execute(query, params)
@@ -407,6 +409,7 @@ def count_series(q="", category="", country=""):
                 count_params = []
                 if category: count_query += " AND category = %s"; count_params.append(category)
                 if country: count_query += " AND country = %s"; count_params.append(country)
+                if creator: count_query += " AND creator = %s"; count_params.append(creator)
                 cur.execute(count_query, count_params)
                 return cur.fetchone()['count']
 
