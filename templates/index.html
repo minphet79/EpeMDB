@@ -5,7 +5,7 @@
 <div class="flex flex-wrap items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
     <div>
         <h1 class="text-xl sm:text-2xl font-bold text-white">Catálogo de Películas</h1>
-        <p class="text-xs sm:text-sm text-gray-400">{{ movies|length }} película{{ 's' if movies|length != 1 else '' }} en tu colección</p>
+        <p class="text-xs sm:text-sm text-gray-400">{{ total_movies }} película{{ 's' if movies|length != 1 else '' }} en tu colección</p>
     </div>
     
     <!-- Indicadores de estado -->
