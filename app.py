@@ -121,14 +121,21 @@ async def add_form(request: Request):
     return templates.TemplateResponse("add.html", {"request": request})
 
 @app.post("/search", response_class=HTMLResponse)
-async def search_tmdb(request: Request, query: str = Form(...), year: str = Form("")):
-    results = await tmdb.search_movies(query, int(year) if year.isdigit() else None)
-    return templates.TemplateResponse("search.html", {"request": request, "results": results, "query": query})
+async def search_tmdb(request: Request, type: str = Form("movie"), query: str = Form(...), year: str = Form("")):
+    if type == "tv":
+        results = await tmdb.search_series(query, int(year) if year.isdigit() else None)
+    else:
+        results = await tmdb.search_movies(query, int(year) if year.isdigit() else None)
+    return templates.TemplateResponse("add.html", {"request": request, "results": results, "query": query, "year": year, "type": type})
 
 @app.get("/import/{tmdb_id}", response_class=HTMLResponse)
-async def import_movie(request: Request, tmdb_id: int):
-    movie_id = db.insert_movie(await tmdb.get_movie_details(tmdb_id))
-    return RedirectResponse(f"/movie/{movie_id}", status_code=303)
+async def import_item(request: Request, tmdb_id: int, type: str = "movie"):
+    if type == "tv":
+        item_id = db.insert_series(await tmdb.get_series_details(tmdb_id))
+        return RedirectResponse(f"/serie/{item_id}", status_code=303)
+    else:
+        item_id = db.insert_movie(await tmdb.get_movie_details(tmdb_id))
+        return RedirectResponse(f"/movie/{item_id}", status_code=303)
 
 @app.get("/movie/{movie_id}", response_class=HTMLResponse)
 async def movie_detail(request: Request, movie_id: int):
