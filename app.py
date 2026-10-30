@@ -115,7 +115,7 @@ async def director_page(request: Request, name: str = ""):
     director_name = unquote(name)
     directors_list = _split_directors(director_name)
     director_norms = [normalize_search(d) for d in directors_list]
-    director_movies = [m for m in db.list_movies() if m.get("director") and all(dn in normalize_search(m["director"]) for dn in director_norms)]
+    director_movies = [m for m in db.list_movies(limit=10000) if m.get("director") and all(dn in normalize_search(m["director"]) for dn in director_norms)]
     return templates.TemplateResponse("director.html", {"request": request, "director_name": director_name, "movies": director_movies, "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())})
 
 @app.get("/failed", response_class=HTMLResponse)
