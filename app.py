@@ -3,7 +3,7 @@ import os
 import re
 import unicodedata
 from urllib.parse import quote, unquote
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, Cookie, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -16,6 +16,20 @@ templates = Jinja2Templates(directory="templates")
 
 db.init_db()
 
+# === CONFIGURACIÓN DE SEGURIDAD ===
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
+
+@app.exception_handler(401)
+async def unauthorized_handler(request: Request, exc: HTTPException):
+    redirect_url = str(request.url)
+    return RedirectResponse(url=f"/login?redirect_url={redirect_url}", status_code=303)
+
+async def check_admin(admin_token: str = Cookie(None)):
+    if admin_token != ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    return True
+
+# === FUNCIONES AUXILIARES ===
 def normalize_search(text):
     if not text: return ""
     text = unicodedata.normalize('NFD', str(text))
@@ -34,13 +48,13 @@ def _split_directors(dir_field):
         directors = new_directors
     return directors
 
+# === RUTAS PÚBLICAS Y DE BÚSQUEDA ===
 @app.get("/api/search-live")
 async def api_search_live(q: str = ""):
     q_clean = normalize_search(q)
     if len(q_clean) < 1: return JSONResponse([])
     results, seen_ids = [], set()
     
-    # 1. Búsqueda en Películas
     all_movies = db.list_movies(q=q, limit=10000)
     for m in all_movies:
         if m["id"] in seen_ids: continue
@@ -50,7 +64,6 @@ async def api_search_live(q: str = ""):
             results.append({"type": "película", "label": f"{m['title_es']} ({m['year'] or '?'})", "sub": f"Título: {m.get('title_original') or '-'}", "url": f"/movie/{m['id']}", "icon": "🎬"})
             seen_ids.add(m["id"])
             
-    # 2. Búsqueda en Directores
     director_stats = {}
     for m in all_movies:
         for dir_name in _split_directors(m.get("director", "")):
@@ -59,7 +72,6 @@ async def api_search_live(q: str = ""):
     for d in sorted(director_stats.values(), key=lambda x: -x["count"])[:3]:
         results.append({"type": "director", "label": d["name"], "sub": f"{d['count']} película{'s' if d['count'] != 1 else ''}", "url": f"/director?name={quote(d['name'])}", "icon": "🎥"})
     
-    # 3. Búsqueda en Actores (Películas)
     actor_stats = {}
     for m in all_movies:
         cast_list = json.loads(m["cast"]) if m["cast"] else []
@@ -75,19 +87,16 @@ async def api_search_live(q: str = ""):
     for a in sorted(actor_stats.values(), key=lambda x: -x["count"])[:3]:
         results.append({"type": "actor", "label": a["name"], "sub": f"{a['count']} película{'s' if a['count'] != 1 else ''}", "url": f"/actor/{a['actor_id']}", "icon": "🎬"})
 
-    # 4. Búsqueda en Series (Nombre y Reparto)
     all_series = db.list_series(q=q, limit=10000)
     for s in all_series:
         if s["id"] in seen_ids: continue
         name_norm = normalize_search(s.get("name", ""))
         name_orig_norm = normalize_search(s.get("name_original", ""))
-        
         if q_clean in name_norm or q_clean in name_orig_norm:
             year = s.get("first_air_date", "")[:4] if s.get("first_air_date") else "?"
             results.append({"type": "serie", "label": f"{s['name']} ({year})", "sub": f"Temporadas: {s.get('seasons', '?')} | {s.get('country', '?')}", "url": f"/serie/{s['id']}", "icon": "📺"})
             seen_ids.add(s["id"])
             continue
-
         cast_list = json.loads(s["cast"]) if s["cast"] else []
         for c in cast_list:
             if isinstance(c, dict):
@@ -97,7 +106,6 @@ async def api_search_live(q: str = ""):
                     results.append({"type": "serie", "label": f"{s['name']} ({year})", "sub": f"Actúa: {actor_name}", "url": f"/serie/{s['id']}", "icon": "📺"})
                     seen_ids.add(s["id"])
                     break
-
     return JSONResponse(results[:15])
 
 @app.get("/", response_class=HTMLResponse)
@@ -182,7 +190,7 @@ async def delete_failed(failed_id: int, admin: bool = Depends(check_admin)):
     return RedirectResponse("/failed", status_code=303)
 
 @app.post("/delete-all-failed")
-async def delete_all_failed(, admin: bool = Depends(check_admin)):
+async def delete_all_failed(admin: bool = Depends(check_admin)):
     for f in db.list_failed_movies(): db.add_ignored_movie(f["title"], f.get("year"))
     db.delete_all_failed_movies()
     return RedirectResponse("/failed", status_code=303)
@@ -204,14 +212,19 @@ async def import_dudas_view(request: Request, admin: bool = Depends(check_admin)
     return templates.TemplateResponse("import_dudas.html", {"request": request, "dudas": dudas})
 
 @app.get("/edit-movie/{movie_id}", response_class=HTMLResponse)
-async def edit_movie_page(request: Request, movie_id: int):
+async def edit_movie_page(request: Request, movie_id: int, admin: bool = Depends(check_admin)):
     m = db.get_movie(movie_id)
     if not m: return HTMLResponse("No encontrada", status_code=404)
     cast_list = [c.get("name", "") if isinstance(c, dict) else c for c in (json.loads(m.get("cast") or "[]") or [])]
     return templates.TemplateResponse("edit_movie.html", {"request": request, "movie": m, "cast_text": "\n".join(cast_list)})
 
 @app.post("/save-movie/{movie_id}")
-async def save_movie(movie_id: int, title_es: str = Form(""), title_original: str = Form(""), year: str = Form(""), country: str = Form(""), continent: str = Form(""), director: str = Form(""), synopsis: str = Form(""), cast_text: str = Form(""), poster_url: str = Form(""), tmdb_id: str = Form("")):
+async def save_movie(
+    movie_id: int, title_es: str = Form(""), title_original: str = Form(""), 
+    year: str = Form(""), country: str = Form(""), continent: str = Form(""), 
+    director: str = Form(""), synopsis: str = Form(""), cast_text: str = Form(""), 
+    poster_url: str = Form(""), tmdb_id: str = Form(""), admin: bool = Depends(check_admin)
+):
     tmdb_id_int = int(tmdb_id) if tmdb_id and tmdb_id.isdigit() else None
     cast_list = []
     if tmdb_id_int:
@@ -219,7 +232,8 @@ async def save_movie(movie_id: int, title_es: str = Form(""), title_original: st
             tmdb_data = await tmdb.get_movie_details(tmdb_id_int)
             if tmdb_data and tmdb_data.get("cast"):
                 cast_list = [{"name": c.get("name", ""), "id": c.get("id"), "profile_path": c.get("profile_path"), "character": c.get("character", "")} for c in tmdb_data["cast"][:15]]
-                synopsis = synopsis or tmdb_data.get("synopsis"); poster_url = poster_url or tmdb_data.get("poster_url")
+                synopsis = synopsis or tmdb_data.get("synopsis")
+                poster_url = poster_url or tmdb_data.get("poster_url")
         except: pass
     if not cast_list and cast_text.strip():
         cast_list = [{"name": line.strip(), "id": None, "profile_path": None, "character": ""} for line in cast_text.strip().split("\n") if line.strip()]
@@ -227,15 +241,25 @@ async def save_movie(movie_id: int, title_es: str = Form(""), title_original: st
         auto_continent = db.get_continent_by_country(country)
         if auto_continent: continent = auto_continent
     with db.db() as conn:
-        conn.execute("UPDATE movies SET tmdb_id = ?, title_es = ?, title_original = ?, year = ?, country = ?, continent = ?, director = ?, synopsis = ?, poster_url = ?, cast = ? WHERE id = ?",
-            (tmdb_id_int, title_es.strip() or None, title_original.strip() or None, int(year) if year.isdigit() else None, country.strip() or None, continent.strip() or None, director.strip() or None, synopsis.strip() or None, poster_url.strip() or None, json.dumps(cast_list, ensure_ascii=False), movie_id))
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE movies SET 
+                    tmdb_id = %s, title_es = %s, title_original = %s, year = %s, 
+                    country = %s, continent = %s, director = %s, synopsis = %s, 
+                    poster_url = %s, "cast" = %s 
+                WHERE id = %s
+            """, (
+                tmdb_id_int, title_es.strip() or None, title_original.strip() or None, 
+                int(year) if year.isdigit() else None, country.strip() or None, 
+                continent.strip() or None, director.strip() or None, synopsis.strip() or None, 
+                poster_url.strip() or None, json.dumps(cast_list, ensure_ascii=False), movie_id
+            ))
+        conn.commit()
     return RedirectResponse(f"/movie/{movie_id}", status_code=303)
 
 @app.get("/actor/{actor_id}", response_class=HTMLResponse)
 async def actor_detail(request: Request, actor_id: int):
     actor_movies, actor_series, actor_name, actor_photo = [], [], "Desconocido", None
-    
-    # Buscar en películas
     for m in db.list_movies(limit=10000):
         for c in (json.loads(m["cast"]) if m["cast"] else []):
             if isinstance(c, dict) and c.get("id") == actor_id:
@@ -245,8 +269,6 @@ async def actor_detail(request: Request, actor_id: int):
                 if c.get("profile_path") and not actor_photo:
                     actor_photo = f"https://image.tmdb.org/t/p/w300{c['profile_path']}" if not c['profile_path'].startswith('http') else c['profile_path']
                 break
-    
-    # Buscar en series
     for s in db.list_series(limit=10000):
         for c in (json.loads(s["cast"]) if s["cast"] else []):
             if isinstance(c, dict) and c.get("id") == actor_id:
@@ -256,13 +278,9 @@ async def actor_detail(request: Request, actor_id: int):
                 if c.get("profile_path") and not actor_photo:
                     actor_photo = f"https://image.tmdb.org/t/p/w300{c['profile_path']}" if not c['profile_path'].startswith('http') else c['profile_path']
                 break
-    
     return templates.TemplateResponse("actor.html", {
-        "request": request, 
-        "actor_name": actor_name, 
-        "actor_photo": actor_photo, 
-        "movies": actor_movies,
-        "series": actor_series
+        "request": request, "actor_name": actor_name, "actor_photo": actor_photo, 
+        "movies": actor_movies, "series": actor_series
     })
 
 @app.post("/update-actor-photo")
@@ -313,10 +331,26 @@ async def apply_translations(request: Request, translations_text: str = Form(...
                 updated += 1; current_id = None
     return HTMLResponse(f'<div class="bg-green-900 border border-green-600 p-6 rounded text-center max-w-2xl mx-auto mt-10"><p class="text-green-300 font-semibold text-lg">✅ Traducciones aplicadas</p><p class="text-green-200 text-sm mt-2">{updated} sinopsis actualizadas.</p><a href="/" class="inline-block mt-4 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al Inicio</a></div>')
 
-# ==========================================
-# RUTAS DE SERIES (Completas y Optimizadas)
-# ==========================================
+# === RUTAS DE LOGIN Y LOGOUT ===
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, redirect_url: str = "/", error: str = ""):
+    return templates.TemplateResponse("login.html", {"request": request, "redirect_url": redirect_url, "error": error})
 
+@app.post("/login")
+async def login_submit(password: str = Form(...), redirect_url: str = Form("/")):
+    if password == ADMIN_PASSWORD:
+        response = RedirectResponse(url=redirect_url, status_code=303)
+        response.set_cookie(key="admin_token", value=ADMIN_PASSWORD, httponly=True, samesite="lax")
+        return response
+    return RedirectResponse(url=f"/login?redirect_url={redirect_url}&error=Contrase%C3%B1a%20incorrecta", status_code=303)
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie("admin_token")
+    return response
+
+# === RUTAS DE SERIES ===
 @app.get("/series", response_class=HTMLResponse)
 async def series_index(request: Request, q: str = "", sort: str = "name", category: str = "", country: str = "", continent: str = "", page: int = 1, per_page: int = 20):
     offset = (page - 1) * per_page
@@ -334,38 +368,22 @@ async def serie_detail(request: Request, series_id: int):
     s = db.get_series(series_id)
     if not s: return HTMLResponse("Serie no encontrada", status_code=404)
     s["cast"] = json.loads(s["cast"]) if s["cast"] else []
-    return templates.TemplateResponse("serie.html", {
-        "request": request, "serie": s
-    })
-
-@app.post("/delete-serie/{series_id}")
-async def delete_serie(series_id: int, admin: bool = Depends(check_admin)):
-    db.delete_series(series_id)
-    return RedirectResponse("/series", status_code=303)
-
-@app.post("/update-serie-poster/{series_id}")
-async def update_serie_poster(request: Request, series_id: int, poster_url: str = Form(...), admin: bool = Depends(check_admin)):
-    db.update_series_poster(series_id, poster_url)
-    return RedirectResponse(f"/serie/{series_id}", status_code=303)
+    return templates.TemplateResponse("serie.html", {"request": request, "serie": s})
 
 @app.get("/edit-serie/{series_id}", response_class=HTMLResponse)
 async def edit_serie_page(request: Request, series_id: int, admin: bool = Depends(check_admin)):
     s = db.get_series(series_id)
     if not s: return HTMLResponse("No encontrada", status_code=404)
     cast_list = [c.get("name", "") if isinstance(c, dict) else c for c in (json.loads(s.get("cast") or "[]") or [])]
-    return templates.TemplateResponse("edit_serie.html", {
-        "request": request, 
-        "serie": s, 
-        "cast_text": "\n".join(cast_list),
-        "categories": db.get_series_categories()
-    })
+    return templates.TemplateResponse("edit_serie.html", {"request": request, "serie": s, "cast_text": "\n".join(cast_list), "categories": db.get_series_categories()})
 
 @app.post("/save-serie/{series_id}")
 async def save_serie(
     series_id: int, name: str = Form(""), name_original: str = Form(""), 
     first_air_date: str = Form(""), country: str = Form(""), category: str = Form(""), 
     creator: str = Form(""), synopsis: str = Form(""), cast_text: str = Form(""), 
-    poster_url: str = Form(""), tmdb_id: str = Form(""), seasons: str = Form(""), episodes: str = Form(""), admin: bool = Depends(check_admin)):
+    poster_url: str = Form(""), tmdb_id: str = Form(""), seasons: str = Form(""), episodes: str = Form(""), admin: bool = Depends(check_admin)
+):
     tmdb_id_int = int(tmdb_id) if tmdb_id and tmdb_id.isdigit() else None
     cast_list = []
     if tmdb_id_int:
@@ -389,15 +407,10 @@ async def save_serie(
                     "cast" = %(cast)s, seasons = %(seasons)s, episodes = %(episodes)s 
                 WHERE id = %(series_id)s
             """, {
-                "tmdb_id": tmdb_id_int,
-                "name": name.strip() or None,
-                "name_original": name_original.strip() or None,
-                "first_air_date": first_air_date.strip() or None,
-                "country": country.strip() or None,
-                "category": category.strip() or None,
-                "creator": creator.strip() or None,
-                "synopsis": synopsis.strip() or None,
-                "poster_url": poster_url.strip() or None,
+                "tmdb_id": tmdb_id_int, "name": name.strip() or None, "name_original": name_original.strip() or None,
+                "first_air_date": first_air_date.strip() or None, "country": country.strip() or None,
+                "category": category.strip() or None, "creator": creator.strip() or None,
+                "synopsis": synopsis.strip() or None, "poster_url": poster_url.strip() or None,
                 "cast": json.dumps(cast_list, ensure_ascii=False),
                 "seasons": int(seasons) if seasons.isdigit() else 0,
                 "episodes": int(episodes) if episodes.isdigit() else 0,
@@ -410,39 +423,30 @@ async def save_serie(
 async def reidentify_serie_form(request: Request, series_id: int, admin: bool = Depends(check_admin)):
     s = db.get_series(series_id)
     if not s: return HTMLResponse("Serie no encontrada", status_code=404)
-    return templates.TemplateResponse("reidentify_serie.html", {
-        "request": request, "serie": s, "results": None, "query": ""
-    })
+    return templates.TemplateResponse("reidentify_serie.html", {"request": request, "serie": s, "results": None, "query": ""})
 
 @app.post("/reidentify-serie/{series_id}", response_class=HTMLResponse)
 async def reidentify_serie_search(request: Request, series_id: int, query: str = Form(...), year: str = Form(""), admin: bool = Depends(check_admin)):
     s = db.get_series(series_id)
     if not s: return HTMLResponse("Serie no encontrada", status_code=404)
     results = await tmdb.search_series(query, int(year) if year.isdigit() else None)
-    return templates.TemplateResponse("reidentify_serie.html", {
-        "request": request, "serie": s, "results": results, "query": query
-    })
+    return templates.TemplateResponse("reidentify_serie.html", {"request": request, "serie": s, "results": results, "query": query})
 
 @app.get("/confirm-reidentify/{series_id}/{new_tmdb_id}", response_class=HTMLResponse)
 async def confirm_reidentify(request: Request, series_id: int, new_tmdb_id: int, admin: bool = Depends(check_admin)):
     s = db.get_series(series_id)
     if not s: return HTMLResponse("Serie no encontrada", status_code=404)
-    
     with db.db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id FROM series WHERE tmdb_id = %s", (new_tmdb_id,))
             existing_row = cur.fetchone()
-            
             if existing_row:
                 cur.execute("DELETE FROM series WHERE id = %s", (series_id,))
                 conn.commit()
                 return RedirectResponse("/series", status_code=303)
-            
             new_data = await tmdb.get_series_details(new_tmdb_id)
             if not new_data: return HTMLResponse("No se pudo obtener la nueva serie de TMDB", status_code=500)
-            
             new_data["category"] = s.get("category", "")
-            
             cur.execute("""
                 UPDATE series SET 
                     tmdb_id = %(tmdb_id)s, name = %(name)s, name_original = %(name_original)s,
@@ -456,5 +460,14 @@ async def confirm_reidentify(request: Request, series_id: int, new_tmdb_id: int,
                 "series_id": series_id
             })
             conn.commit()
-            
+    return RedirectResponse(f"/serie/{series_id}", status_code=303)
+
+@app.post("/delete-serie/{series_id}")
+async def delete_serie(series_id: int, admin: bool = Depends(check_admin)):
+    db.delete_series(series_id)
+    return RedirectResponse("/series", status_code=303)
+
+@app.post("/update-serie-poster/{series_id}")
+async def update_serie_poster(request: Request, series_id: int, poster_url: str = Form(...), admin: bool = Depends(check_admin)):
+    db.update_series_poster(series_id, poster_url)
     return RedirectResponse(f"/serie/{series_id}", status_code=303)
