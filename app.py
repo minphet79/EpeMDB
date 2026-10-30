@@ -343,6 +343,11 @@ async def delete_serie(series_id: int):
     db.delete_series(series_id)
     return RedirectResponse("/series", status_code=303)
 
+@app.post("/update-serie-poster/{series_id}")
+async def update_serie_poster(request: Request, series_id: int, poster_url: str = Form(...)):
+    db.update_series_poster(series_id, poster_url)
+    return RedirectResponse(f"/serie/{series_id}", status_code=303)
+
 @app.get("/edit-serie/{series_id}", response_class=HTMLResponse)
 async def edit_serie_page(request: Request, series_id: int):
     s = db.get_series(series_id)
