@@ -57,13 +57,17 @@ async def api_search_live(q: str = ""):
     return JSONResponse(results[:15])
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request, q: str = "", sort: str = "added_desc", continent: str = "", country: str = "", director: str = ""):
-    movies = db.list_movies(q, sort, continent, country, director)
+async def index(request: Request, q: str = "", sort: str = "added_desc", continent: str = "", country: str = "", director: str = "", page: int = 1, per_page: int = 100):
+    offset = (page - 1) * per_page
+    movies = db.list_movies(q, sort, continent, country, director, offset=offset, limit=per_page)
+    total = db.count_movies(q, continent, country, director)
+    total_pages = (total + per_page - 1) // per_page
     return templates.TemplateResponse("index.html", {
         "request": request, "movies": movies, "q": q, "sort": sort, "continent": continent, "country": country, "director": director,
         "continents": db.get_continents_list(), "countries": db.get_countries_by_continent(continent),
         "all_countries": db.get_distinct_values("country"), "directors": db.get_distinct_values("director"),
-        "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())
+        "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies()),
+        "page": page, "total_pages": total_pages, "total_movies": total, "per_page": per_page
     })
 
 @app.get("/add", response_class=HTMLResponse)
