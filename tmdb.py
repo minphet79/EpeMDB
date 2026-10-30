@@ -155,3 +155,56 @@ async def get_movie_details(tmdb_id: int) -> dict:
         "director": ", ".join(directors) or None, "cast": cast,
         "synopsis": synopsis, "poster_url": poster,
     }
+
+async def search_series(query: str, year: int = None, lang: str = "es-ES") -> list:
+    params = {"api_key": API_KEY, "language": lang, "query": query, "include_adult": "false"}
+    if year: params["first_air_date_year"] = year
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(f"{BASE}/search/tv", params=params)
+        r.raise_for_status()
+        return r.json().get("results", [])[:20]
+
+async def get_series_details(tmdb_id: int) -> dict:
+    params_es = {"api_key": API_KEY, "language": "es-ES", "append_to_response": "credits"}
+    synopsis_es, name_es = None, None
+    async with httpx.AsyncClient(timeout=10) as client:
+        r_es = await client.get(f"{BASE}/tv/{tmdb_id}", params=params_es)
+        if r_es.status_code == 200:
+            data_es = r_es.json()
+            synopsis_es = data_es.get("overview")
+            name_es = data_es.get("name")
+            
+    if not name_es:
+        async with httpx.AsyncClient(timeout=10) as client:
+            tr = await client.get(f"{BASE}/tv/{tmdb_id}/translations", params={"api_key": API_KEY})
+            if tr.status_code == 200:
+                for t in tr.json().get("translations", []):
+                    if t.get("iso_3166_1") == "ES" or t.get("iso_639_1") == "es":
+                        tt = t.get("data", {}).get("name")
+                        if tt: name_es = tt; break
+
+    params_en = {"api_key": API_KEY, "language": "en-US", "append_to_response": "credits"}
+    async with httpx.AsyncClient(timeout=10) as client:
+        r_en = await client.get(f"{BASE}/tv/{tmdb_id}", params=params_en)
+        r_en.raise_for_status()
+        data_en = r_en.json()
+
+    synopsis = synopsis_es if synopsis_es else data_en.get("overview")
+    credits_data = data_en.get("credits", {})
+    creators = [c["name"] for c in data_en.get("created_by", [])]
+    directors = [c["name"] for c in credits_data.get("crew", []) if c.get("job") == "Director"]
+    main_director = ", ".join(creators) if creators else (", ".join(directors) if directors else None)
+    
+    cast = [{"id": c["id"], "name": c["name"], "profile_path": c.get("profile_path"), "character": c.get("character", "")} for c in credits_data.get("cast", [])[:15]]
+    countries = data_en.get("origin_country", [])
+    country_iso = countries[0] if countries else None
+    country = get_country_spanish(country_iso)
+    poster = f"{IMG}{data_en['poster_path']}" if data_en.get("poster_path") else None
+    if not name_es: name_es = data_en.get("name") or data_en.get("original_name")
+
+    return {
+        "tmdb_id": data_en["id"], "name": name_es, "name_original": data_en.get("original_name"),
+        "first_air_date": data_en.get("first_air_date"), "country": country, "category": "",
+        "cast": cast, "synopsis": synopsis, "poster_url": poster,
+        "seasons": data_en.get("number_of_seasons", 0), "episodes": data_en.get("number_of_episodes", 0)
+    }
