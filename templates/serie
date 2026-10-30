@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <a href="/series" class="inline-flex items-center text-blue-400 hover:text-blue-300 mb-6">
+        ← Volver al listado de series
+    </a>
+
+    <div class="bg-gray-800 rounded-xl shadow-2xl overflow-hidden">
+        <div class="md:flex">
+            <!-- Póster -->
+            <div class="md:w-1/3 lg:w-1/4 p-6">
+                {% if serie.poster_url %}
+                    <img src="{{ serie.poster_url }}" alt="{{ serie.name }}" class="w-full rounded-lg shadow-lg">
+                {% else %}
+                    <div class="w-full aspect-[2/3] bg-gray-700 rounded-lg flex items-center justify-center text-gray-500">Sin póster</div>
+                {% endif %}
+            </div>
+
+            <!-- Información -->
+            <div class="md:w-2/3 lg:w-3/4 p-6 md:p-8">
+                <div class="flex flex-wrap items-center gap-3 mb-4">
+                    <h1 class="text-3xl md:text-4xl font-bold text-white">{{ serie.name }}</h1>
+                    {% if serie.category %}
+                        <span class="bg-blue-600 text-white text-sm px-3 py-1 rounded-full font-semibold">{{ serie.category }}</span>
+                    {% endif %}
+                </div>
+
+                <p class="text-xl text-gray-300 mb-2 italic">{{ serie.name_original or '' }}</p>
+                
+                <div class="flex flex-wrap gap-4 text-sm text-gray-400 mb-6">
+                    <span>📅 {{ serie.first_air_date or 'Desconocido' }}</span>
+                    <span>🌍 {{ serie.country or 'Desconocido' }}</span>
+                    <span>📺 {{ serie.seasons or 0 }} Temporadas</span>
+                    <span>🎬 {{ serie.episodes or 0 }} Episodios</span>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-white mb-2">Sinopsis</h3>
+                    <p class="text-gray-300 leading-relaxed">{{ serie.synopsis or 'No hay sinopsis disponible.' }}</p>
+                </div>
+
+                {% if serie.cast and serie.cast|length > 0 %}
+                    <div>
+                        <h3 class="text-lg font-semibold text-white mb-3">Reparto principal</h3>
+                        <div class="flex flex-wrap gap-2">
+                            {% for c in serie.cast %}
+                                <span class="bg-gray-700 text-gray-200 px-3 py-1 rounded-full text-sm">
+                                    {{ c.name if c is mapping else c }}
+                                </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
