@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <a href="/serie/{{ serie.id }}" class="inline-flex items-center text-gray-400 hover:text-white mb-6">← Volver a la serie</a>
+    
+    <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 mb-6">
+        <h1 class="text-2xl font-bold text-white mb-2">🔄 Re-identificar serie en TMDB</h1>
+        <p class="text-gray-400 text-sm mb-4">
+            Serie actual: <strong class="text-white">{{ serie.name }}</strong> 
+            {% if serie.first_air_date %}({{ serie.first_air_date[:4] }}){% endif %}
+        </p>
+        <p class="text-gray-400 text-sm">
+            Busca el título correcto en TMDB. Al seleccionar un resultado, se reemplazarán todos los datos de esta serie (título, póster, sinopsis, reparto, país, etc.).
+            <span class="text-yellow-400 block mt-1">⚠️ Se mantendrá la categoría especial si ya le asignaste una.</span>
+        </p>
+    </div>
+
+    <!-- Formulario de búsqueda -->
+    <form method="POST" action="/reidentify-serie/{{ serie.id }}" class="flex flex-col sm:flex-row gap-3 mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700">
+        <div class="flex-1">
+            <label class="block text-xs text-gray-400 mb-1">Nuevo título a buscar</label>
+            <input type="text" name="query" required placeholder="Ej: Shogun 1980, Isabel Allende..." 
+                   value="{{ query or '' }}"
+                   class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+        <div class="w-full sm:w-32">
+            <label class="block text-xs text-gray-400 mb-1">Año (opcional)</label>
+            <input type="text" name="year" placeholder="1980" 
+                   value=""
+                   class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-orange-500">
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="w-full sm:w-auto bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded text-sm font-medium transition">
+                🔍 Buscar en TMDB
+            </button>
+        </div>
+    </form>
+
+    <!-- Resultados -->
+    {% if results is not none %}
+        {% if results %}
+        <h2 class="text-lg font-semibold text-orange-400 mb-4">Resultados para "{{ query }}" — Selecciona la correcta:</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {% for r in results %}
+            <div class="bg-gray-800 rounded-lg border border-gray-700 p-4 flex gap-4 hover:border-orange-600 transition">
+                <div class="flex-shrink-0">
+                    {% if r.poster_path %}
+                        <img src="https://image.tmdb.org/t/p/w185{{ r.poster_path }}" 
+                             class="w-20 aspect-[2/3] object-cover rounded shadow" loading="lazy">
+                    {% else %}
+                        <div class="w-20 aspect-[2/3] bg-gray-700 rounded flex items-center justify-center text-[10px] text-gray-500">Sin img</div>
+                    {% endif %}
+                </div>
+                
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-sm font-semibold text-white leading-tight mb-1">
+                        {{ r.name or r.original_name or '?' }}
+                    </h3>
+                    {% if r.original_name and r.original_name != r.name %}
+                        <p class="text-[10px] text-gray-500 italic truncate">{{ r.original_name }}</p>
+                    {% endif %}
+                    <p class="text-xs text-gray-400 mt-1">
+                        📅 {{ (r.first_air_date or '')[:4] or 'Año desconocido' }}
+                        {% if r.origin_country %} · {{ r.origin_country[0] }}{% endif %}
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        📺 {{ r.number_of_seasons or '?' }} temp.
+                    </p>
+                    
+                    <a href="/confirm-reidentify/{{ serie.id }}/{{ r.id }}" 
+                       class="inline-block mt-3 bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded text-xs font-medium transition">
+                        ✅ Reemplazar identificación
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="bg-gray-800 p-8 rounded-lg border border-gray-700 text-center">
+            <p class="text-gray-400 text-lg">No se encontraron resultados para "{{ query }}"</p>
+            <p class="text-gray-500 text-sm mt-2">Prueba con otro título o en inglés.</p>
+        </div>
+        {% endif %}
+    {% endif %}
+</div>
+{% endblock %}
