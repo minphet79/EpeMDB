@@ -1,32 +1,92 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="flex flex-col md:flex-row gap-6">
-  <div class="w-full md:w-64 flex-shrink-0">
-    {% if actor_photo %}
-      <img src="{{ actor_photo }}" class="w-full rounded shadow-lg">
-    {% else %}
-      <div class="w-full aspect-[2/3] bg-gray-700 rounded flex items-center justify-center text-gray-400">Sin foto</div>
-    {% endif %}
-  </div>
-  <div class="flex-1">
-    <h1 class="text-3xl font-bold mb-4">{{ actor_name }}</h1>
-    <h2 class="text-xl font-semibold mb-3 text-gray-300">Películas en tu colección:</h2>
-    {% if actor_movies %}
-      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-        {% for m in actor_movies %}
-        <a href="/movie/{{ m.id }}" class="bg-gray-800 rounded overflow-hidden hover:scale-105 transition">
-          <img src="{{ m.poster_url or 'https://via.placeholder.com/300x450?text=Sin+Poster' }}" class="w-full aspect-[2/3] object-cover">
-          <div class="p-2">
-            <div class="font-semibold text-sm truncate">{{ m.title_es }}</div>
-            <div class="text-xs text-gray-400">{{ m.year or '' }}</div>
-          </div>
+<div class="container mx-auto px-4 py-8">
+    <a href="javascript:history.back()" class="inline-flex items-center text-blue-400 hover:text-blue-300 mb-6">
+        ← Volver
+    </a>
+
+    <div class="bg-gray-800 rounded-xl shadow-2xl overflow-hidden mb-8">
+        <div class="md:flex">
+            <!-- Foto del actor -->
+            <div class="md:w-1/4 lg:w-1/5 p-6">
+                {% if actor_photo %}
+                    <img src="{{ actor_photo }}" alt="{{ actor_name }}" class="w-full rounded-lg shadow-lg">
+                {% else %}
+                    <div class="w-full aspect-[2/3] bg-gray-700 rounded-lg flex items-center justify-center text-gray-500">Sin foto</div>
+                {% endif %}
+            </div>
+
+            <!-- Información -->
+            <div class="md:w-3/4 lg:w-4/5 p-6 md:p-8">
+                <h1 class="text-3xl md:text-4xl font-bold text-white mb-4">{{ actor_name }}</h1>
+                
+                <div class="flex gap-6 text-sm text-gray-400 mb-6">
+                    <span>🎬 {{ movies|length }} película{{ 's' if movies|length != 1 else '' }}</span>
+                    <span>📺 {{ series|length }} serie{{ 's' if series|length != 1 else '' }}</span>
+                </div>
+
+                <p class="text-gray-300">Filmografía completa en tu colección</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Películas -->
+    {% if movies %}
+    <h2 class="text-2xl font-bold text-white mb-4">🎬 Películas</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 mb-8">
+        {% for m in movies %}
+        <a href="/movie/{{ m.id }}" class="group block">
+            <div class="relative overflow-hidden rounded-lg shadow-lg bg-gray-800">
+                {% if m.poster_url %}
+                    <img src="{{ m.poster_url }}" alt="{{ m.title_es }}" class="w-full aspect-[2/3] object-cover group-hover:opacity-80 group-hover:scale-105 transition duration-300" loading="lazy">
+                {% else %}
+                    <div class="w-full aspect-[2/3] bg-gray-700 flex items-center justify-center text-xs text-gray-500">Sin póster</div>
+                {% endif %}
+            </div>
+            <div class="mt-2">
+                <h3 class="text-xs sm:text-sm font-semibold text-white leading-tight truncate group-hover:text-blue-400 transition">{{ m.title_es }}</h3>
+                {% if m.title_original and m.title_original != m.title_es %}
+                    <p class="text-[9px] sm:text-[10px] text-gray-500 italic truncate">{{ m.title_original }}</p>
+                {% endif %}
+                <p class="text-[10px] sm:text-xs text-gray-400 mt-1">{{ m.year or '?' }}</p>
+            </div>
         </a>
         {% endfor %}
-      </div>
-    {% else %}
-      <p class="text-gray-400">No hay películas de este actor en tu colección.</p>
+    </div>
     {% endif %}
-    <a href="/" class="inline-block mt-6 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al inicio</a>
-  </div>
+
+    <!-- Series -->
+    {% if series %}
+    <h2 class="text-2xl font-bold text-white mb-4">📺 Series</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+        {% for s in series %}
+        <a href="/serie/{{ s.id }}" class="group block">
+            <div class="relative overflow-hidden rounded-lg shadow-lg bg-gray-800">
+                {% if s.poster_url %}
+                    <img src="{{ s.poster_url }}" alt="{{ s.name }}" class="w-full aspect-[2/3] object-cover group-hover:opacity-80 group-hover:scale-105 transition duration-300" loading="lazy">
+                {% else %}
+                    <div class="w-full aspect-[2/3] bg-gray-700 flex items-center justify-center text-xs text-gray-500">Sin póster</div>
+                {% endif %}
+                {% if s.category %}
+                    <span class="absolute top-1 right-1 bg-purple-600 text-white text-[9px] px-1.5 py-0.5 rounded font-bold shadow">{{ s.category }}</span>
+                {% endif %}
+            </div>
+            <div class="mt-2">
+                <h3 class="text-xs sm:text-sm font-semibold text-white leading-tight truncate group-hover:text-blue-400 transition">{{ s.name }}</h3>
+                {% if s.name_original and s.name_original != s.name %}
+                    <p class="text-[9px] sm:text-[10px] text-gray-500 italic truncate">{{ s.name_original }}</p>
+                {% endif %}
+                <p class="text-[10px] sm:text-xs text-gray-400 mt-1">{{ s.first_air_date[:4] if s.first_air_date else '?' }}</p>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not movies and not series %}
+    <div class="bg-gray-800 p-8 rounded-lg border border-gray-700 text-center">
+        <p class="text-gray-400 text-lg">No se encontraron películas ni series con este actor en tu colección.</p>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
