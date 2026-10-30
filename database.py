@@ -388,10 +388,10 @@ def list_series(q="", sort="added_desc", category="", country="", continent="", 
                 elif sort == "year_desc":
                     query += " ORDER BY first_air_date DESC, name ASC"
                 elif sort == "name":
-                    query += " ORDER BY LOWER(name) ASC"
+                    query += " ORDER BY LOWER(COALESCE(name_original, name)) ASC"
                 else:
                     query += " ORDER BY id DESC"
-
+                
                 query += f" LIMIT {limit} OFFSET {offset}"
                 cur.execute(query, params)
                 series = [dict(r) for r in cur.fetchall()]
