@@ -3,7 +3,7 @@ import os
 import re
 import unicodedata
 from urllib.parse import quote, unquote
-from fastapi import FastAPI, Request, Form, Cookie, Depends
+from fastapi import FastAPI, Request, Form, Cookie, Depends, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
