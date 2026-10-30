@@ -269,3 +269,28 @@ async def apply_translations(request: Request, translations_text: str = Form(...
                 with db.db() as conn: conn.execute("UPDATE movies SET synopsis = ? WHERE id = ?", (synopsis_es, current_id))
                 updated += 1; current_id = None
     return HTMLResponse(f'<div class="bg-green-900 border border-green-600 p-6 rounded text-center max-w-2xl mx-auto mt-10"><p class="text-green-300 font-semibold text-lg">✅ Traducciones aplicadas</p><p class="text-green-200 text-sm mt-2">{updated} sinopsis actualizadas.</p><a href="/" class="inline-block mt-4 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al Inicio</a></div>')
+
+# === RUTAS PARA SERIES ===
+
+@app.get("/series", response_class=HTMLResponse)
+async def series_index(request: Request, q: str = "", sort: str = "added_desc", category: str = "", country: str = "", page: int = 1, per_page: int = 20):
+    offset = (page - 1) * per_page
+    series_list = db.list_series(q=q, sort=sort, category=category, country=country, offset=offset, limit=per_page)
+    total = db.count_series(q=q, category=category, country=country)
+    total_pages = (total + per_page - 1) // per_page
+    return templates.TemplateResponse("series_index.html", {
+        "request": request, "series": series_list, "q": q, "sort": sort, "category": category, "country": country,
+        "categories": db.get_series_categories(), "countries": db.get_series_countries(),
+        "page": page, "total_pages": total_pages, "total_series": total, "per_page": per_page,
+        "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())
+    })
+
+@app.get("/serie/{series_id}", response_class=HTMLResponse)
+async def serie_detail(request: Request, series_id: int):
+    s = db.get_series(series_id)
+    if not s: return HTMLResponse("Serie no encontrada", status_code=404)
+    s["cast"] = json.loads(s["cast"]) if s["cast"] else []
+    return templates.TemplateResponse("serie.html", {
+        "request": request, "serie": s, 
+        "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())
+    })
