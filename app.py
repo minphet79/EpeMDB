@@ -362,7 +362,7 @@ async def save_serie(
                     tmdb_id = %(tmdb_id)s, name = %(name)s, name_original = %(name_original)s, 
                     first_air_date = %(first_air_date)s, country = %(country)s, category = %(category)s, 
                     creator = %(creator)s, synopsis = %(synopsis)s, poster_url = %(poster_url)s, 
-                    cast = %(cast)s, seasons = %(seasons)s, episodes = %(episodes)s 
+                    "cast" = %(cast)s, seasons = %(seasons)s, episodes = %(episodes)s 
                 WHERE id = %(series_id)s
             """, {
                 "tmdb_id": tmdb_id_int,
