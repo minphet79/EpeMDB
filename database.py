@@ -517,5 +517,11 @@ def delete_series(series_id):
         with conn.cursor() as cur:
             cur.execute("DELETE FROM series WHERE id = %s", (series_id,))
         conn.commit()
+
+def update_series_poster(series_id, poster_url):
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE series SET poster_url = %s WHERE id = %s", (poster_url, series_id))
+        conn.commit()
         
 init_db()
