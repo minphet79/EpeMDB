@@ -17,13 +17,15 @@ templates = Jinja2Templates(directory="templates")
 # === CONFIGURACIÓN DE SEGURIDAD ===
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
 
+# Manejador global para redirigir errores 401 al login
+@app.exception_handler(401)
+async def unauthorized_handler(request: Request, exc: HTTPException):
+    return RedirectResponse(url="/login", status_code=303)
+
 # Función para verificar si tienes la cookie de administrador
 async def check_admin(admin_token: str = Cookie(None)):
-    print(f"🔒 DEBUG AUTH: Token recibido='{admin_token}' | Contraseña esperada='{ADMIN_PASSWORD}'")
     if admin_token != ADMIN_PASSWORD:
-        print("🚫 Acceso denegado. Redirigiendo al login...")
-        return RedirectResponse(url="/login", status_code=303)
-    print("✅ Acceso concedido.")
+        raise HTTPException(status_code=401, detail="No autorizado")
     return True
 
 db.init_db()
