@@ -1,15 +1,15 @@
 import json
 import os
 import unicodedata
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import psycopg
+from psycopg.rows import dict_row
 from contextlib import contextmanager
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 @contextmanager
 def db():
-    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
     try:
         yield conn
         conn.commit()
@@ -37,7 +37,6 @@ def init_db():
                 id SERIAL PRIMARY KEY, titulo TEXT, titulo_original TEXT,
                 year TEXT, pais TEXT, continente TEXT, director TEXT, candidatos TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-            conn.commit()
 
 def normalize_title(t):
     if not t: return ""
