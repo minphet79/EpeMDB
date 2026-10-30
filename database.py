@@ -516,5 +516,6 @@ def delete_series(series_id):
     with db() as conn:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM series WHERE id = %s", (series_id,))
-
+        conn.commit()
+        
 init_db()
