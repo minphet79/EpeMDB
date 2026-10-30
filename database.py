@@ -350,4 +350,105 @@ def delete_import_duda(duda_id):
         with conn.cursor() as cur:
             cur.execute("DELETE FROM import_dudas WHERE id = %s", (duda_id,))
 
+# === FUNCIONES PARA SERIES ===
+
+def list_series(q="", sort="added_desc", category="", country="", offset=0, limit=20):
+    with db() as conn:
+        with conn.cursor() as cur:
+            query = "SELECT * FROM series WHERE 1=1"
+            params = []
+            if category: query += " AND category = %s"; params.append(category)
+            if country: query += " AND country = %s"; params.append(country)
+
+            if q:
+                cur.execute(query, params)
+                series = [dict(r) for r in cur.fetchall()]
+                q_norm = normalize_title(q)
+                def matches(s):
+                    text = f"{s.get('name', '')} {s.get('name_original', '')} {s.get('cast', '')}"
+                    return q_norm in normalize_title(text)
+                series = [s for s in series if matches(s)]
+            else:
+                if sort == "year_asc":
+                    query += " ORDER BY first_air_date ASC, name ASC"
+                elif sort == "year_desc":
+                    query += " ORDER BY first_air_date DESC, name ASC"
+                elif sort == "name":
+                    query += " ORDER BY LOWER(name) ASC"
+                else:
+                    query += " ORDER BY id DESC"
+
+                query += f" LIMIT {limit} OFFSET {offset}"
+                cur.execute(query, params)
+                series = [dict(r) for r in cur.fetchall()]
+
+    return series
+
+def count_series(q="", category="", country=""):
+    with db() as conn:
+        with conn.cursor() as cur:
+            query = "SELECT * FROM series WHERE 1=1"
+            params = []
+            if category: query += " AND category = %s"; params.append(category)
+            if country: query += " AND country = %s"; params.append(country)
+
+            if q:
+                cur.execute(query, params)
+                rows = cur.fetchall()
+                q_norm = normalize_title(q)
+                count = 0
+                for r in rows:
+                    text = f"{r['name'] or ''} {r['name_original'] or ''} {r['cast'] or ''}"
+                    if q_norm in normalize_title(text):
+                        count += 1
+                return count
+            else:
+                count_query = "SELECT COUNT(*) FROM series WHERE 1=1"
+                count_params = []
+                if category: count_query += " AND category = %s"; count_params.append(category)
+                if country: count_query += " AND country = %s"; count_params.append(country)
+                cur.execute(count_query, count_params)
+                return cur.fetchone()['count']
+
+def get_series(series_id):
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM series WHERE id = %s", (series_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+def get_series_by_tmdb(tmdb_id):
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM series WHERE tmdb_id = %s", (tmdb_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+def get_series_categories():
+    return ["Dibujos Animados", "Sagas", "Documentales", "Musicales"]
+
+def get_series_countries():
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT country FROM series WHERE country IS NOT NULL AND country != '' ORDER BY country")
+            return [r['country'] for r in cur.fetchall()]
+
+def insert_series(s):
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""INSERT INTO series (tmdb_id, name, name_original, first_air_date, country, category, "cast", synopsis, poster_url, seasons, episodes)
+                VALUES (%(tmdb_id)s, %(name)s, %(name_original)s, %(first_air_date)s, %(country)s, %(category)s, %(cast)s, %(synopsis)s, %(poster_url)s, %(seasons)s, %(episodes)s)
+                ON CONFLICT(tmdb_id) DO UPDATE SET name=EXCLUDED.name, first_air_date=EXCLUDED.first_air_date, 
+                "cast"=EXCLUDED."cast", synopsis=EXCLUDED.synopsis, country=EXCLUDED.country, category=EXCLUDED.category,
+                poster_url = CASE WHEN EXCLUDED.poster_url IS NOT NULL AND EXCLUDED.poster_url != '' THEN EXCLUDED.poster_url ELSE series.poster_url END,
+                seasons=EXCLUDED.seasons, episodes=EXCLUDED.episodes
+                RETURNING id""",
+                {**s, "cast": json.dumps(s.get("cast") or [])})
+            return cur.fetchone()['id']
+
+def delete_series(series_id):
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM series WHERE id = %s", (series_id,))
+
 init_db()
