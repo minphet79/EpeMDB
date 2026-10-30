@@ -3,7 +3,7 @@ import os
 import re
 import unicodedata
 from urllib.parse import quote, unquote
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, Request, Form, Cookie, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -13,6 +13,15 @@ import tmdb
 app = FastAPI(title="EpeMDB")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+# === CONFIGURACIÓN DE SEGURIDAD ===
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
+
+# Función para verificar si tienes la cookie de administrador
+async def check_admin(admin_token: str = Cookie(None)):
+    if admin_token != ADMIN_PASSWORD:
+        return RedirectResponse(url="/login", status_code=303)
+    return True
 
 db.init_db()
 
@@ -204,7 +213,7 @@ async def import_dudas_view(request: Request):
     return templates.TemplateResponse("import_dudas.html", {"request": request, "dudas": dudas})
 
 @app.get("/edit-movie/{movie_id}", response_class=HTMLResponse)
-async def edit_movie_page(request: Request, movie_id: int):
+async def edit_movie_page(request: Request, movie_id: int, admin: bool = Depends(check_admin)):
     m = db.get_movie(movie_id)
     if not m: return HTMLResponse("No encontrada", status_code=404)
     cast_list = [c.get("name", "") if isinstance(c, dict) else c for c in (json.loads(m.get("cast") or "[]") or [])]
@@ -459,3 +468,23 @@ async def confirm_reidentify(request: Request, series_id: int, new_tmdb_id: int)
             conn.commit()
             
     return RedirectResponse(f"/serie/{series_id}", status_code=303)
+
+# === RUTAS DE LOGIN Y LOGOUT ===
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, error: str = ""):
+    return templates.TemplateResponse("login.html", {"request": request, "error": error})
+
+@app.post("/login")
+async def login_submit(password: str = Form(...)):
+    if password == ADMIN_PASSWORD:
+        response = RedirectResponse(url="/", status_code=303)
+        # Guardamos la contraseña en una cookie segura
+        response.set_cookie(key="admin_token", value=ADMIN_PASSWORD, httponly=True, samesite="lax")
+        return response
+    return RedirectResponse(url="/login?error=Contrase%C3%B1a%20incorrecta", status_code=303)
+
+@app.get("/logout")
+async def logout():
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie("admin_token")
+    return response
