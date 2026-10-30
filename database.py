@@ -82,7 +82,7 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
 
         if q:
             rows = conn.execute(query, params).fetchall()
-                        movies = [dict(r) for r in rows]
+            movies = [dict(r) for r in rows]
             q_norm = normalize_title(q)
             def matches(m):
                 text = f"{m.get('title_es', '')} {m.get('title_original', '')} {m.get('director', '')} {m.get('cast', '')}"
