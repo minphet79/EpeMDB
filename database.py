@@ -82,9 +82,12 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
 
         if q:
             rows = conn.execute(query, params).fetchall()
-            movies = [dict(r) for r in rows]
+                        movies = [dict(r) for r in rows]
             q_norm = normalize_title(q)
-            movies = [m for m in movies if q_norm in normalize_title(m.get("title_es", "")) or q_norm in normalize_title(m.get("title_original", "")) or q_norm in normalize_title(m.get("director", ""))]
+            def matches(m):
+                text = f"{m.get('title_es', '')} {m.get('title_original', '')} {m.get('director', '')} {m.get('cast', '')}"
+                return q_norm in normalize_title(text)
+            movies = [m for m in movies if matches(m)]
         else:
             if sort == "year_asc":
                 query += " ORDER BY year ASC, title_original ASC"
