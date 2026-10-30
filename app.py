@@ -182,7 +182,7 @@ async def save_movie(movie_id: int, title_es: str = Form(""), title_original: st
 @app.get("/actor/{actor_id}", response_class=HTMLResponse)
 async def actor_detail(request: Request, actor_id: int):
     actor_movies, actor_name, actor_photo = [], "Desconocido", None
-    for m in db.list_movies():
+    for m in db.list_movies(limit=10000):
         for c in (json.loads(m["cast"]) if m["cast"] else []):
             if isinstance(c, dict) and c.get("id") == actor_id:
                 actor_movies.append(m); actor_name = c.get("name", "Desconocido")
