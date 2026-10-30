@@ -73,6 +73,24 @@
     </div>
 </div>
 
+                <!-- Formulario para añadir/cambiar póster -->
+                <div class="mt-6 pt-6 border-t border-gray-700">
+                    <h3 class="text-lg font-semibold text-white mb-3">🖼️ Póster</h3>
+                    {% if not serie.poster_url %}
+                        <p class="text-gray-400 text-sm mb-3">Esta serie no tiene póster. Pega la URL de una imagen para añadirla.</p>
+                    {% else %}
+                        <p class="text-gray-400 text-sm mb-3">Puedes cambiar el póster actual pegando una nueva URL de imagen.</p>
+                    {% endif %}
+                    <form method="POST" action="/update-serie-poster/{{ serie.id }}" class="flex flex-col sm:flex-row gap-3">
+                        <input type="url" name="poster_url" required placeholder="https://image.tmdb.org/t/p/w500/..." 
+                               value="{{ serie.poster_url or '' }}"
+                               class="flex-1 bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition">
+                            {% if serie.poster_url %}Actualizar póster{% else %}Añadir póster{% endif %}
+                        </button>
+                    </form>
+                </div>
+
                 <!-- Botón de Eliminación -->
                 <div class="mt-4">
                     <form method="POST" action="/delete-serie/{{ serie.id }}" onsubmit="return confirm('¿Estás seguro de que quieres eliminar esta serie de tu colección? Esta acción no se puede deshacer.');">
