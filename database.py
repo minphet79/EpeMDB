@@ -358,24 +358,28 @@ def list_series(q="", sort="added_desc", category="", country="", continent="", 
         with conn.cursor() as cur:
             query = "SELECT * FROM series WHERE 1=1"
             params = []
-            if category: query += " AND category = %s"; params.append(category)
+            
+            if category: 
+                query += " AND category = %s"
+                params.append(category)
+                
             if continent:
                 continent_countries = get_countries_by_continent(continent)
-            if continent_countries:
+                if continent_countries:
                     placeholders = ','.join(['%s'] * len(continent_countries))
                     query += f" AND country IN ({placeholders})"
                     params.extend(continent_countries)
+                    
             if country: 
-                query += " AND (country = %s OR country IN (SELECT iso_code FROM countries WHERE name = %s))"
-                params.extend([country, country])
-            if creator: query += " AND creator = %s"; params.append(creator)    
+                query += " AND country = %s"
+                params.append(country)
 
             if q:
                 cur.execute(query, params)
                 series = [dict(r) for r in cur.fetchall()]
                 q_norm = normalize_title(q)
                 def matches(s):
-                    text = f"{s.get('name', '')} {s.get('name_original', '')} {s.get('cast', '')}"
+                    text = f"{s.get('name', '')} {s.get('name_original', '')} {s.get('creator', '')} {s.get('cast', '')}"
                     return q_norm in normalize_title(text)
                 series = [s for s in series if matches(s)]
             else:
@@ -393,23 +397,27 @@ def list_series(q="", sort="added_desc", category="", country="", continent="", 
                 series = [dict(r) for r in cur.fetchall()]
 
     return series
-
+    
 def count_series(q="", category="", country="", continent=""):
     with db() as conn:
         with conn.cursor() as cur:
             query = "SELECT * FROM series WHERE 1=1"
             params = []
-            if category: query += " AND category = %s"; params.append(category)
+            
+            if category: 
+                query += " AND category = %s"
+                params.append(category)
+                
             if continent:
                 continent_countries = get_countries_by_continent(continent)
-            if continent_countries:
+                if continent_countries:
                     placeholders = ','.join(['%s'] * len(continent_countries))
                     query += f" AND country IN ({placeholders})"
                     params.extend(continent_countries)
+                    
             if country: 
-                query += " AND (country = %s OR country IN (SELECT iso_code FROM countries WHERE name = %s))"
-                params.extend([country, country])
-            if creator: query += " AND creator = %s"; params.append(creator)
+                query += " AND country = %s"
+                params.append(country)
 
             if q:
                 cur.execute(query, params)
@@ -417,16 +425,26 @@ def count_series(q="", category="", country="", continent=""):
                 q_norm = normalize_title(q)
                 count = 0
                 for r in rows:
-                    text = f"{r['name'] or ''} {r['name_original'] or ''} {r['cast'] or ''}"
+                    text = f"{r['name'] or ''} {r['name_original'] or ''} {r['creator'] or ''} {r['cast'] or ''}"
                     if q_norm in normalize_title(text):
                         count += 1
                 return count
             else:
                 count_query = "SELECT COUNT(*) FROM series WHERE 1=1"
                 count_params = []
-                if category: count_query += " AND category = %s"; count_params.append(category)
-                if country: count_query += " AND country = %s"; count_params.append(country)
-                if creator: count_query += " AND creator = %s"; count_params.append(creator)
+                if category: 
+                    count_query += " AND category = %s"
+                    count_params.append(category)
+                if continent:
+                    continent_countries = get_countries_by_continent(continent)
+                    if continent_countries:
+                        placeholders = ','.join(['%s'] * len(continent_countries))
+                        count_query += f" AND country IN ({placeholders})"
+                        count_params.extend(continent_countries)
+                if country: 
+                    count_query += " AND country = %s"
+                    count_params.append(country)
+                    
                 cur.execute(count_query, count_params)
                 return cur.fetchone()['count']
 
