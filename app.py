@@ -294,7 +294,7 @@ async def apply_translations(request: Request, translations_text: str = Form(...
 # === RUTAS PARA SERIES ===
 
 @app.get("/series", response_class=HTMLResponse)
-async def series_index(request: Request, q: str = "", sort: str = "added_desc", category: str = "", country: str = "", continent: str = "", page: int = 1, per_page: int = 20):
+async def series_index(request: Request, q: str = "", sort: str = "name", category: str = "", country: str = "", continent: str = "", page: int = 1, per_page: int = 20):
     offset = (page - 1) * per_page
     series_list = db.list_series(q=q, sort=sort, category=category, country=country, continent=continent, offset=offset, limit=per_page)
     total = db.count_series(q=q, category=category, country=country, continent=continent)
