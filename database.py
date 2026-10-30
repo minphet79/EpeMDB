@@ -119,10 +119,8 @@ def count_movies(q="", continent="", country="", director=""):
             q_norm = normalize_title(q)
             count = 0
             for r in rows:
-                t_es = r["title_es"] or ""
-                t_orig = r["title_original"] or ""
-                t_dir = r["director"] or ""
-                if q_norm in normalize_title(t_es) or q_norm in normalize_title(t_orig) or q_norm in normalize_title(t_dir):
+                text = f"{r['title_es'] or ''} {r['title_original'] or ''} {r['director'] or ''} {r['cast'] or ''}"
+                if q_norm in normalize_title(text):
                     count += 1
             return count
         else:
