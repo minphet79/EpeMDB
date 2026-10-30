@@ -19,8 +19,11 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
 
 # Función para verificar si tienes la cookie de administrador
 async def check_admin(admin_token: str = Cookie(None)):
+    print(f"🔒 DEBUG AUTH: Token recibido='{admin_token}' | Contraseña esperada='{ADMIN_PASSWORD}'")
     if admin_token != ADMIN_PASSWORD:
+        print("🚫 Acceso denegado. Redirigiendo al login...")
         return RedirectResponse(url="/login", status_code=303)
+    print("✅ Acceso concedido.")
     return True
 
 db.init_db()
