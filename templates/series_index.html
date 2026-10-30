@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <h1 class="text-3xl font-bold text-gray-100">📺 Series de TV</h1>
+        
+        <!-- Buscador y Filtros -->
+        <form method="GET" action="/series" class="flex flex-wrap gap-2 w-full md:w-auto">
+            <input type="text" name="q" value="{{ q }}" placeholder="Buscar serie..." class="px-3 py-2 rounded bg-gray-700 text-white border border-gray-600 focus:outline-none focus:border-blue-500">
+            
+            <select name="category" class="px-3 py-2 rounded bg-gray-700 text-white border border-gray-600 focus:outline-none">
+                <option value="">Todas las categorías</option>
+                {% for cat in categories %}
+                    <option value="{{ cat }}" {% if category == cat %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+            </select>
+
+            <select name="country" class="px-3 py-2 rounded bg-gray-700 text-white border border-gray-600 focus:outline-none">
+                <option value="">Todos los países</option>
+                {% for c in countries %}
+                    <option value="{{ c }}" {% if country == c %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+            </select>
+
+            <select name="sort" class="px-3 py-2 rounded bg-gray-700 text-white border border-gray-600 focus:outline-none">
+                <option value="added_desc" {% if sort == 'added_desc' %}selected{% endif %}>Más recientes</option>
+                <option value="year_desc" {% if sort == 'year_desc' %}selected{% endif %}>Año (Desc)</option>
+                <option value="year_asc" {% if sort == 'year_asc' %}selected{% endif %}>Año (Asc)</option>
+                <option value="name" {% if sort == 'name' %}selected{% endif %}>Nombre (A-Z)</option>
+            </select>
+
+            <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold">Filtrar</button>
+        </form>
+    </div>
+
+    <!-- Grid de Series -->
+    {% if series %}
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+            {% for s in series %}
+                <a href="/serie/{{ s.id }}" class="group bg-gray-800 rounded-lg overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+                    <div class="relative aspect-[2/3]">
+                        {% if s.poster_url %}
+                            <img src="{{ s.poster_url }}" alt="{{ s.name }}" class="w-full h-full object-cover">
+                        {% else %}
+                            <div class="w-full h-full bg-gray-700 flex items-center justify-center text-gray-500">Sin póster</div>
+                        {% endif %}
+                        {% if s.category %}
+                            <span class="absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full font-bold shadow">{{ s.category }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="p-3">
+                        <h3 class="font-bold text-gray-100 truncate group-hover:text-blue-400 transition-colors">{{ s.name }}</h3>
+                        <p class="text-sm text-gray-400">{{ s.first_air_date[:4] if s.first_air_date else '?' }} • {{ s.country or 'Desconocido' }}</p>
+                        <p class="text-xs text-gray-500 mt-1">{{ s.seasons or 0 }} temp. • {{ s.episodes or 0 }} eps.</p>
+                    </div>
+                </a>
+            {% endfor %}
+        </div>
+
+        <!-- Paginación -->
+        {% if total_pages > 1 %}
+            <div class="flex justify-center items-center gap-2 mt-8">
+                {% if page > 1 %}
+                    <a href="?q={{ q }}&sort={{ sort }}&category={{ category }}&country={{ country }}&page={{ page - 1 }}" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded">Anterior</a>
+                {% endif %}
+                <span class="text-gray-300">Página {{ page }} de {{ total_pages }} ({{ total_series }} series)</span>
+                {% if page < total_pages %}
+                    <a href="?q={{ q }}&sort={{ sort }}&category={{ category }}&country={{ country }}&page={{ page + 1 }}" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded">Siguiente</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="text-center py-20">
+            <p class="text-xl text-gray-400">No se encontraron series con estos filtros.</p>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
