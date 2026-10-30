@@ -226,7 +226,12 @@ async def edit_movie_page(request: Request, movie_id: int, admin: bool = Depends
     return templates.TemplateResponse("edit_movie.html", {"request": request, "movie": m, "cast_text": "\n".join(cast_list)})
 
 @app.post("/save-movie/{movie_id}")
-async def save_movie(movie_id: int, title_es: str = Form(""), title_original: str = Form(""), year: str = Form(""), country: str = Form(""), continent: str = Form(""), director: str = Form(""), synopsis: str = Form(""), cast_text: str = Form(""), poster_url: str = Form(""), tmdb_id: str = Form("")):
+async def save_movie(
+    movie_id: int, title_es: str = Form(""), title_original: str = Form(""), 
+    year: str = Form(""), country: str = Form(""), continent: str = Form(""), 
+    director: str = Form(""), synopsis: str = Form(""), cast_text: str = Form(""), 
+    poster_url: str = Form(""), tmdb_id: str = Form(""), admin: bool = Depends(check_admin)
+):
     tmdb_id_int = int(tmdb_id) if tmdb_id and tmdb_id.isdigit() else None
     cast_list = []
     if tmdb_id_int:
@@ -234,18 +239,39 @@ async def save_movie(movie_id: int, title_es: str = Form(""), title_original: st
             tmdb_data = await tmdb.get_movie_details(tmdb_id_int)
             if tmdb_data and tmdb_data.get("cast"):
                 cast_list = [{"name": c.get("name", ""), "id": c.get("id"), "profile_path": c.get("profile_path"), "character": c.get("character", "")} for c in tmdb_data["cast"][:15]]
-                synopsis = synopsis or tmdb_data.get("synopsis"); poster_url = poster_url or tmdb_data.get("poster_url")
+                synopsis = synopsis or tmdb_data.get("synopsis")
+                poster_url = poster_url or tmdb_data.get("poster_url")
         except: pass
     if not cast_list and cast_text.strip():
         cast_list = [{"name": line.strip(), "id": None, "profile_path": None, "character": ""} for line in cast_text.strip().split("\n") if line.strip()]
     if country:
         auto_continent = db.get_continent_by_country(country)
         if auto_continent: continent = auto_continent
+        
     with db.db() as conn:
-        conn.execute("UPDATE movies SET tmdb_id = ?, title_es = ?, title_original = ?, year = ?, country = ?, continent = ?, director = ?, synopsis = ?, poster_url = ?, cast = ? WHERE id = ?",
-            (tmdb_id_int, title_es.strip() or None, title_original.strip() or None, int(year) if year.isdigit() else None, country.strip() or None, continent.strip() or None, director.strip() or None, synopsis.strip() or None, poster_url.strip() or None, json.dumps(cast_list, ensure_ascii=False), movie_id))
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE movies SET 
+                    tmdb_id = %s, title_es = %s, title_original = %s, year = %s, 
+                    country = %s, continent = %s, director = %s, synopsis = %s, 
+                    poster_url = %s, cast = %s 
+                WHERE id = %s
+            """, (
+                tmdb_id_int, 
+                title_es.strip() or None, 
+                title_original.strip() or None, 
+                int(year) if year.isdigit() else None, 
+                country.strip() or None, 
+                continent.strip() or None, 
+                director.strip() or None, 
+                synopsis.strip() or None, 
+                poster_url.strip() or None, 
+                json.dumps(cast_list, ensure_ascii=False), 
+                movie_id
+            ))
+        conn.commit()
     return RedirectResponse(f"/movie/{movie_id}", status_code=303)
-
+    
 @app.get("/actor/{actor_id}", response_class=HTMLResponse)
 async def actor_detail(request: Request, actor_id: int):
     actor_movies, actor_series, actor_name, actor_photo = [], [], "Desconocido", None
