@@ -73,6 +73,15 @@
     </div>
 </div>
 
+                <!-- Botón de Eliminación -->
+                <div class="mt-4">
+                    <form method="POST" action="/delete-serie/{{ serie.id }}" onsubmit="return confirm('¿Estás seguro de que quieres eliminar esta serie de tu colección? Esta acción no se puede deshacer.');">
+                        <button type="submit" class="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-medium transition">
+                            🗑️ Eliminar serie
+                        </button>
+                    </form>
+                </div>
+
                 <!-- Botón de Re-identificación -->
                 <div class="mt-4 pt-4 border-t border-gray-700">
                     <a href="/reidentify-serie/{{ serie.id }}" class="inline-flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded font-medium transition">
