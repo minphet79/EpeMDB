@@ -38,6 +38,8 @@ async def api_search_live(q: str = ""):
     q_clean = normalize_search(q)
     if len(q_clean) < 1: return JSONResponse([])
     results, seen_ids = [], set()
+    
+    # 1. Búsqueda en Películas
     all_movies = db.list_movies(q=q, limit=10000)
     for m in all_movies:
         if m["id"] in seen_ids: continue
@@ -45,8 +47,21 @@ async def api_search_live(q: str = ""):
         title_orig_norm = normalize_search(m.get("title_original", ""))
         if q_clean in title_es_norm or q_clean in title_orig_norm:
             priority = 3 if title_es_norm == q_clean else (4 if title_orig_norm == q_clean else (2.5 if title_es_norm.startswith(q_clean) or title_orig_norm.startswith(q_clean) else 2))
-            results.append({"type": "película", "label": f"{m['title_es']} ({m['year'] or '?'})", "sub": f"Título: {m.get('title_original') or '-'}", "url": f"/movie/{m['id']}", "icon": ""})
+            results.append({"type": "película", "label": f"{m['title_es']} ({m['year'] or '?'})", "sub": f"Título: {m.get('title_original') or '-'}", "url": f"/movie/{m['id']}", "icon": "🎬"})
             seen_ids.add(m["id"])
+            
+    # 2. Búsqueda en Series
+    all_series = db.list_series(q=q, limit=10000)
+    for s in all_series:
+        if s["id"] in seen_ids: continue
+        name_norm = normalize_search(s.get("name", ""))
+        name_orig_norm = normalize_search(s.get("name_original", ""))
+        if q_clean in name_norm or q_clean in name_orig_norm:
+            year = s.get("first_air_date", "")[:4] if s.get("first_air_date") else "?"
+            results.append({"type": "serie", "label": f"{s['name']} ({year})", "sub": f"Temporadas: {s.get('seasons', '?')} | {s.get('country', '?')}", "url": f"/serie/{s['id']}", "icon": "📺"})
+            seen_ids.add(s["id"])
+
+    # 3. Búsqueda en Directores (Películas)
     director_stats = {}
     for m in all_movies:
         for dir_name in _split_directors(m.get("director", "")):
@@ -55,7 +70,7 @@ async def api_search_live(q: str = ""):
     for d in sorted(director_stats.values(), key=lambda x: -x["count"])[:3]:
         results.append({"type": "director", "label": d["name"], "sub": f"{d['count']} película{'s' if d['count'] != 1 else ''}", "url": f"/director?name={quote(d['name'])}", "icon": "🎥"})
     
-    # Búsqueda en el reparto (actores) - AHORA GUARDAMOS EL ID
+    # 4. Búsqueda en Reparto (Películas)
     actor_stats = {}
     for m in all_movies:
         cast_list = json.loads(m["cast"]) if m["cast"] else []
