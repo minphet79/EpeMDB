@@ -50,16 +50,30 @@ async def api_search_live(q: str = ""):
             results.append({"type": "película", "label": f"{m['title_es']} ({m['year'] or '?'})", "sub": f"Título: {m.get('title_original') or '-'}", "url": f"/movie/{m['id']}", "icon": "🎬"})
             seen_ids.add(m["id"])
             
-    # 2. Búsqueda en Series
+    # 2. Búsqueda en Series (Nombre y Reparto)
     all_series = db.list_series(q=q, limit=10000)
     for s in all_series:
         if s["id"] in seen_ids: continue
         name_norm = normalize_search(s.get("name", ""))
         name_orig_norm = normalize_search(s.get("name_original", ""))
+        
+        # Buscar por nombre
         if q_clean in name_norm or q_clean in name_orig_norm:
             year = s.get("first_air_date", "")[:4] if s.get("first_air_date") else "?"
             results.append({"type": "serie", "label": f"{s['name']} ({year})", "sub": f"Temporadas: {s.get('seasons', '?')} | {s.get('country', '?')}", "url": f"/serie/{s['id']}", "icon": "📺"})
             seen_ids.add(s["id"])
+            continue # Si ya la agregamos por nombre, no la agregamos doble por actor
+
+        # Buscar por reparto (Actores de series)
+        cast_list = json.loads(s["cast"]) if s["cast"] else []
+        for c in cast_list:
+            if isinstance(c, dict):
+                actor_name = c.get("name", "")
+                if q_clean in normalize_search(actor_name):
+                    year = s.get("first_air_date", "")[:4] if s.get("first_air_date") else "?"
+                    results.append({"type": "serie", "label": f"{s['name']} ({year})", "sub": f"Actúa: {actor_name}", "url": f"/serie/{s['id']}", "icon": "📺"})
+                    seen_ids.add(s["id"])
+                    break # Solo agregar una vez por serie
 
     # 3. Búsqueda en Directores (Películas)
     director_stats = {}
