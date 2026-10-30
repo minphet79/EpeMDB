@@ -78,7 +78,7 @@ def init_db():
             cur.execute("""CREATE TABLE IF NOT EXISTS series (
                 id SERIAL PRIMARY KEY, tmdb_id INTEGER UNIQUE, name TEXT,
                 name_original TEXT, first_air_date TEXT, country TEXT, 
-                category TEXT, "cast" TEXT DEFAULT '[]', synopsis TEXT, 
+                category TEXT, creator TEXT, "cast" TEXT DEFAULT '[]', synopsis TEXT, 
                 poster_url TEXT, seasons INTEGER DEFAULT 0, episodes INTEGER DEFAULT 0)""")
     migrate_sqlite_to_postgres()
 
@@ -433,13 +433,20 @@ def get_series_countries():
             cur.execute("SELECT DISTINCT country FROM series WHERE country IS NOT NULL AND country != '' ORDER BY country")
             return [r['country'] for r in cur.fetchall()]
 
+def get_series_creators():
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT creator FROM series WHERE creator IS NOT NULL AND creator != '' ORDER BY creator")
+            return [r['creator'] for r in cur.fetchall()]
+
 def insert_series(s):
     with db() as conn:
         with conn.cursor() as cur:
-            cur.execute("""INSERT INTO series (tmdb_id, name, name_original, first_air_date, country, category, "cast", synopsis, poster_url, seasons, episodes)
-                VALUES (%(tmdb_id)s, %(name)s, %(name_original)s, %(first_air_date)s, %(country)s, %(category)s, %(cast)s, %(synopsis)s, %(poster_url)s, %(seasons)s, %(episodes)s)
+            cur.execute("""INSERT INTO series (tmdb_id, name, name_original, first_air_date, country, category, creator, "cast", synopsis, poster_url, seasons, episodes)
+                VALUES (%(tmdb_id)s, %(name)s, %(name_original)s, %(first_air_date)s, %(country)s, %(category)s, %(creator)s, %(cast)s, %(synopsis)s, %(poster_url)s, %(seasons)s, %(episodes)s)
                 ON CONFLICT(tmdb_id) DO UPDATE SET name=EXCLUDED.name, first_air_date=EXCLUDED.first_air_date, 
                 "cast"=EXCLUDED."cast", synopsis=EXCLUDED.synopsis, country=EXCLUDED.country, category=EXCLUDED.category,
+                creator=EXCLUDED.creator,
                 poster_url = CASE WHEN EXCLUDED.poster_url IS NOT NULL AND EXCLUDED.poster_url != '' THEN EXCLUDED.poster_url ELSE series.poster_url END,
                 seasons=EXCLUDED.seasons, episodes=EXCLUDED.episodes
                 RETURNING id""",
