@@ -254,7 +254,7 @@ async def save_movie(
                 UPDATE movies SET 
                     tmdb_id = %s, title_es = %s, title_original = %s, year = %s, 
                     country = %s, continent = %s, director = %s, synopsis = %s, 
-                    poster_url = %s, cast = %s 
+                    poster_url = %s, "cast" = %s 
                 WHERE id = %s
             """, (
                 tmdb_id_int, 
