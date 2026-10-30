@@ -1,16 +1,15 @@
 import json
-import sqlite3
 import os
 import unicodedata
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "movies.db")
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 @contextmanager
 def db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
     try:
         yield conn
         conn.commit()
@@ -22,22 +21,23 @@ def db():
 
 def init_db():
     with db() as conn:
-        conn.execute("""CREATE TABLE IF NOT EXISTS movies (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, tmdb_id INTEGER UNIQUE, title_es TEXT,
-            title_original TEXT, year INTEGER, country TEXT, continent TEXT, director TEXT,
-            "cast" TEXT DEFAULT '[]', synopsis TEXT, poster_url TEXT)""")
-        conn.execute("""CREATE TABLE IF NOT EXISTS failed_movies (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, year TEXT, error TEXT,
-            summary TEXT, directors TEXT, countries TEXT, genres TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-        conn.execute("""CREATE TABLE IF NOT EXISTS ignored_movies (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT UNIQUE, year TEXT,
-            ignored_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-        conn.execute("""CREATE TABLE IF NOT EXISTS import_dudas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT, titulo_original TEXT,
-            year TEXT, pais TEXT, continente TEXT, director TEXT, candidatos TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-        conn.commit()
+        with conn.cursor() as cur:
+            cur.execute("""CREATE TABLE IF NOT EXISTS movies (
+                id SERIAL PRIMARY KEY, tmdb_id INTEGER UNIQUE, title_es TEXT,
+                title_original TEXT, year INTEGER, country TEXT, continent TEXT, director TEXT,
+                "cast" TEXT DEFAULT '[]', synopsis TEXT, poster_url TEXT)""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS failed_movies (
+                id SERIAL PRIMARY KEY, title TEXT, year TEXT, error TEXT,
+                summary TEXT, directors TEXT, countries TEXT, genres TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS ignored_movies (
+                id SERIAL PRIMARY KEY, title TEXT UNIQUE, year TEXT,
+                ignored_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+            cur.execute("""CREATE TABLE IF NOT EXISTS import_dudas (
+                id SERIAL PRIMARY KEY, titulo TEXT, titulo_original TEXT,
+                year TEXT, pais TEXT, continente TEXT, director TEXT, candidatos TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+            conn.commit()
 
 def normalize_title(t):
     if not t: return ""
@@ -74,96 +74,108 @@ def get_continents_list(): return CONTINENTES_VALIDOS
 
 def list_movies(q="", sort="added_desc", continent="", country="", director="", offset=0, limit=20):
     with db() as conn:
-        query = "SELECT * FROM movies WHERE 1=1"
-        params = []
-        if continent: query += " AND continent = ?"; params.append(continent)
-        if country: query += " AND country = ?"; params.append(country)
-        if director: query += " AND director = ?"; params.append(director)
+        with conn.cursor() as cur:
+            query = "SELECT * FROM movies WHERE 1=1"
+            params = []
+            if continent: query += " AND continent = %s"; params.append(continent)
+            if country: query += " AND country = %s"; params.append(country)
+            if director: query += " AND director = %s"; params.append(director)
 
-        if q:
-            rows = conn.execute(query, params).fetchall()
-            movies = [dict(r) for r in rows]
-            q_norm = normalize_title(q)
-            def matches(m):
-                text = f"{m.get('title_es', '')} {m.get('title_original', '')} {m.get('director', '')} {m.get('cast', '')}"
-                return q_norm in normalize_title(text)
-            movies = [m for m in movies if matches(m)]
-        else:
-            if sort == "year_asc":
-                query += " ORDER BY year ASC, title_original ASC"
-            elif sort == "year_desc":
-                query += " ORDER BY year DESC, title_original ASC"
-            elif sort == "title_es":
-                query += " ORDER BY title_es COLLATE NOCASE ASC"
-            elif sort == "title_original":
-                query += " ORDER BY title_original COLLATE NOCASE ASC"
+            if q:
+                cur.execute(query, params)
+                movies = [dict(r) for r in cur.fetchall()]
+                q_norm = normalize_title(q)
+                def matches(m):
+                    text = f"{m.get('title_es', '')} {m.get('title_original', '')} {m.get('director', '')} {m.get('cast', '')}"
+                    return q_norm in normalize_title(text)
+                movies = [m for m in movies if matches(m)]
             else:
-                query += " ORDER BY id DESC"
+                if sort == "year_asc":
+                    query += " ORDER BY year ASC, title_original ASC"
+                elif sort == "year_desc":
+                    query += " ORDER BY year DESC, title_original ASC"
+                elif sort == "title_es":
+                    query += " ORDER BY LOWER(title_es) ASC"
+                elif sort == "title_original":
+                    query += " ORDER BY LOWER(title_original) ASC"
+                else:
+                    query += " ORDER BY id DESC"
 
-            query += f" LIMIT {limit} OFFSET {offset}"
-            rows = conn.execute(query, params).fetchall()
-            movies = [dict(r) for r in rows]
+                query += f" LIMIT {limit} OFFSET {offset}"
+                cur.execute(query, params)
+                movies = [dict(r) for r in cur.fetchall()]
 
     return movies
 
 def count_movies(q="", continent="", country="", director=""):
     with db() as conn:
-        query = "SELECT * FROM movies WHERE 1=1"
-        params = []
-        if continent: query += " AND continent = ?"; params.append(continent)
-        if country: query += " AND country = ?"; params.append(country)
-        if director: query += " AND director = ?"; params.append(director)
+        with conn.cursor() as cur:
+            query = "SELECT * FROM movies WHERE 1=1"
+            params = []
+            if continent: query += " AND continent = %s"; params.append(continent)
+            if country: query += " AND country = %s"; params.append(country)
+            if director: query += " AND director = %s"; params.append(director)
 
-        if q:
-            rows = conn.execute(query, params).fetchall()
-            q_norm = normalize_title(q)
-            count = 0
-            for r in rows:
-                text = f"{r['title_es'] or ''} {r['title_original'] or ''} {r['director'] or ''} {r['cast'] or ''}"
-                if q_norm in normalize_title(text):
-                    count += 1
-            return count
-        else:
-            count_query = "SELECT COUNT(*) FROM movies WHERE 1=1"
-            count_params = []
-            if continent: count_query += " AND continent = ?"; count_params.append(continent)
-            if country: count_query += " AND country = ?"; count_params.append(country)
-            if director: count_query += " AND director = ?"; count_params.append(director)
-            return conn.execute(count_query, count_params).fetchone()[0]
+            if q:
+                cur.execute(query, params)
+                rows = cur.fetchall()
+                q_norm = normalize_title(q)
+                count = 0
+                for r in rows:
+                    text = f"{r['title_es'] or ''} {r['title_original'] or ''} {r['director'] or ''} {r['cast'] or ''}"
+                    if q_norm in normalize_title(text):
+                        count += 1
+                return count
+            else:
+                count_query = "SELECT COUNT(*) FROM movies WHERE 1=1"
+                count_params = []
+                if continent: count_query += " AND continent = %s"; count_params.append(continent)
+                if country: count_query += " AND country = %s"; count_params.append(country)
+                if director: count_query += " AND director = %s"; count_params.append(director)
+                cur.execute(count_query, count_params)
+                return cur.fetchone()['count']
 
 def get_movie(movie_id):
     with db() as conn:
-        row = conn.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
-        return dict(row) if row else None
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM movies WHERE id = %s", (movie_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
 
 def get_movie_by_tmdb(tmdb_id):
     with db() as conn:
-        row = conn.execute("SELECT * FROM movies WHERE tmdb_id = ?", (tmdb_id,)).fetchone()
-        return dict(row) if row else None
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM movies WHERE tmdb_id = %s", (tmdb_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
 
 def get_distinct_values(field):
     if field == "continent": return get_continents_list()
     with db() as conn:
-        rows = conn.execute(f"SELECT DISTINCT {field} FROM movies WHERE {field} IS NOT NULL AND {field} != '' ORDER BY {field}").fetchall()
-        return [r[0] for r in rows]
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT DISTINCT {field} FROM movies WHERE {field} IS NOT NULL AND {field} != '' ORDER BY {field}")
+            return [r[0] for r in cur.fetchall()]
 
 def get_countries_by_continent(continent):
     if not continent: return get_distinct_values("country")
     with db() as conn:
-        rows = conn.execute("SELECT DISTINCT country FROM movies WHERE continent = ? AND country IS NOT NULL AND country != '' ORDER BY country", (continent,)).fetchall()
-        return [r[0] for r in rows]
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT country FROM movies WHERE continent = %s AND country IS NOT NULL AND country != '' ORDER BY country", (continent,))
+            return [r[0] for r in cur.fetchall()]
 
 def get_movies_without_poster():
     with db() as conn:
-        rows = conn.execute("SELECT * FROM movies WHERE poster_url IS NULL OR poster_url = '' ORDER BY title_es").fetchall()
-        return [dict(r) for r in rows]
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM movies WHERE poster_url IS NULL OR poster_url = '' ORDER BY title_es")
+            return [dict(r) for r in cur.fetchall()]
 
 def get_uk_related_movies():
     uk_countries = ('Reino Unido', 'United Kingdom', 'UK', 'Inglaterra', 'England', 'Escocia', 'Scotland', 'Gales', 'Wales', 'Irlanda del Norte', 'Northern Ireland')
-    placeholders = ','.join(['?'] * len(uk_countries))
+    placeholders = ','.join(['%s'] * len(uk_countries))
     with db() as conn:
-        rows = conn.execute(f"SELECT id, title_es, title_original, year, country FROM movies WHERE country IN ({placeholders}) ORDER BY year ASC, title_es ASC", uk_countries).fetchall()
-        return [dict(r) for r in rows]
+        with conn.cursor() as cur:
+            cur.execute(f"SELECT id, title_es, title_original, year, country FROM movies WHERE country IN ({placeholders}) ORDER BY year ASC, title_es ASC", uk_countries)
+            return [dict(r) for r in cur.fetchall()]
 
 def merge_cast(old_cast, new_cast):
     if not old_cast: return new_cast or []
@@ -182,80 +194,117 @@ def insert_movie(m):
         auto_continent = get_continent_by_country(m["country"])
         if auto_continent: m["continent"] = auto_continent
     with db() as conn:
-        existing = conn.execute('SELECT "cast" FROM movies WHERE tmdb_id = ?', (m.get("tmdb_id"),)).fetchone()
-        if existing: m["cast"] = merge_cast(json.loads(existing["cast"]) if existing["cast"] else [], m.get("cast") or [])
-        cur = conn.execute("""INSERT INTO movies (tmdb_id, title_es, title_original, year, country, continent, director, "cast", synopsis, poster_url)
-            VALUES (:tmdb_id, :title_es, :title_original, :year, :country, :continent, :director, :cast, :synopsis, :poster_url)
-            ON CONFLICT(tmdb_id) DO UPDATE SET title_es=excluded.title_es, year=excluded.year, director=excluded.director,
-            "cast"=excluded."cast", synopsis=excluded.synopsis, country=excluded.country, continent=excluded.continent,
-            poster_url = CASE WHEN excluded.poster_url IS NOT NULL AND excluded.poster_url != '' THEN excluded.poster_url ELSE movies.poster_url END""",
-            {**m, "cast": json.dumps(m.get("cast") or [])})
-        return cur.lastrowid
+        with conn.cursor() as cur:
+            cur.execute('SELECT "cast" FROM movies WHERE tmdb_id = %s', (m.get("tmdb_id"),))
+            existing = cur.fetchone()
+            if existing: m["cast"] = merge_cast(json.loads(existing["cast"]) if existing["cast"] else [], m.get("cast") or [])
+            
+            cur.execute("""INSERT INTO movies (tmdb_id, title_es, title_original, year, country, continent, director, "cast", synopsis, poster_url)
+                VALUES (%(tmdb_id)s, %(title_es)s, %(title_original)s, %(year)s, %(country)s, %(continent)s, %(director)s, %(cast)s, %(synopsis)s, %(poster_url)s)
+                ON CONFLICT(tmdb_id) DO UPDATE SET title_es=EXCLUDED.title_es, year=EXCLUDED.year, director=EXCLUDED.director,
+                "cast"=EXCLUDED."cast", synopsis=EXCLUDED.synopsis, country=EXCLUDED.country, continent=EXCLUDED.continent,
+                poster_url = CASE WHEN EXCLUDED.poster_url IS NOT NULL AND EXCLUDED.poster_url != '' THEN EXCLUDED.poster_url ELSE movies.poster_url END
+                RETURNING id""",
+                {**m, "cast": json.dumps(m.get("cast") or [])})
+            return cur.fetchone()['id']
 
 def delete_movie(movie_id):
-    with db() as conn: conn.execute("DELETE FROM movies WHERE id = ?", (movie_id,))
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM movies WHERE id = %s", (movie_id,))
 
 def update_poster(movie_id, poster_url):
-    with db() as conn: conn.execute("UPDATE movies SET poster_url = ? WHERE id = ?", (poster_url, movie_id))
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE movies SET poster_url = %s WHERE id = %s", (poster_url, movie_id))
 
 def update_actor_photo(actor_id, actor_name, photo_url):
     with db() as conn:
-        for r in conn.execute('SELECT id, "cast" FROM movies').fetchall():
-            try:
-                cast = json.loads(r["cast"]) if r["cast"] else []
-                changed = False
-                for c in cast:
-                    if isinstance(c, dict) and ((actor_id and str(c.get("id")) == str(actor_id)) or (not actor_id and c.get("name") == actor_name)):
-                        c["profile_path"] = photo_url.strip() if photo_url else None; changed = True
-                if changed: conn.execute('UPDATE movies SET "cast" = ? WHERE id = ?', (json.dumps(cast, ensure_ascii=False), r["id"]))
-            except Exception as e: print(f"[Error] {e}")
+        with conn.cursor() as cur:
+            cur.execute('SELECT id, "cast" FROM movies')
+            for r in cur.fetchall():
+                try:
+                    cast = json.loads(r["cast"]) if r["cast"] else []
+                    changed = False
+                    for c in cast:
+                        if isinstance(c, dict) and ((actor_id and str(c.get("id")) == str(actor_id)) or (not actor_id and c.get("name") == actor_name)):
+                            c["profile_path"] = photo_url.strip() if photo_url else None; changed = True
+                    if changed:
+                        cur.execute('UPDATE movies SET "cast" = %s WHERE id = %s', (json.dumps(cast, ensure_ascii=False), r["id"]))
+                except Exception as e: print(f"[Error] {e}")
 
 def remove_actor_photo(actor_id, actor_name):
     with db() as conn:
-        for r in conn.execute('SELECT id, "cast" FROM movies').fetchall():
-            try:
-                cast = json.loads(r["cast"]) if r["cast"] else []
-                changed = False
-                for c in cast:
-                    if isinstance(c, dict) and ((actor_id and str(c.get("id")) == str(actor_id)) or (not actor_id and c.get("name") == actor_name)):
-                        c["profile_path"] = None; changed = True
-                if changed: conn.execute('UPDATE movies SET "cast" = ? WHERE id = ?', (json.dumps(cast, ensure_ascii=False), r["id"]))
-            except Exception as e: print(f"[Error] {e}")
+        with conn.cursor() as cur:
+            cur.execute('SELECT id, "cast" FROM movies')
+            for r in cur.fetchall():
+                try:
+                    cast = json.loads(r["cast"]) if r["cast"] else []
+                    changed = False
+                    for c in cast:
+                        if isinstance(c, dict) and ((actor_id and str(c.get("id")) == str(actor_id)) or (not actor_id and c.get("name") == actor_name)):
+                            c["profile_path"] = None; changed = True
+                    if changed:
+                        cur.execute('UPDATE movies SET "cast" = %s WHERE id = %s', (json.dumps(cast, ensure_ascii=False), r["id"]))
+                except Exception as e: print(f"[Error] {e}")
 
 def add_failed_movie(title, year, error, summary="", directors="", countries="", genres=""):
-    with db() as conn: conn.execute("INSERT INTO failed_movies (title, year, error, summary, directors, countries, genres) VALUES (?, ?, ?, ?, ?, ?, ?)", (title, year, error, summary, directors, countries, genres))
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO failed_movies (title, year, error, summary, directors, countries, genres) VALUES (%s, %s, %s, %s, %s, %s, %s)", (title, year, error, summary, directors, countries, genres))
 
 def list_failed_movies():
-    with db() as conn: return [dict(r) for r in conn.execute("SELECT * FROM failed_movies ORDER BY title").fetchall()]
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM failed_movies ORDER BY title")
+            return [dict(r) for r in cur.fetchall()]
 
 def delete_failed_movie(failed_id):
-    with db() as conn: conn.execute("DELETE FROM failed_movies WHERE id = ?", (failed_id,))
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM failed_movies WHERE id = %s", (failed_id,))
 
 def delete_all_failed_movies():
-    with db() as conn: conn.execute("DELETE FROM failed_movies")
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM failed_movies")
 
 def add_ignored_movie(title, year):
-    with db() as conn: conn.execute("INSERT OR IGNORE INTO ignored_movies (title, year) VALUES (?, ?)", (title, year))
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("INSERT INTO ignored_movies (title, year) VALUES (%s, %s) ON CONFLICT (title) DO NOTHING", (title, year))
 
 def list_ignored_movies():
-    with db() as conn: return [dict(r) for r in conn.execute("SELECT * FROM ignored_movies").fetchall()]
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM ignored_movies")
+            return [dict(r) for r in cur.fetchall()]
 
 def is_movie_ignored(title):
     norm = normalize_title(title)
     with db() as conn:
-        for r in conn.execute("SELECT title FROM ignored_movies").fetchall():
-            if normalize_title(r[0]) == norm: return True
+        with conn.cursor() as cur:
+            cur.execute("SELECT title FROM ignored_movies")
+            for r in cur.fetchall():
+                if normalize_title(r['title']) == norm: return True
     return False
 
 def list_import_dudas():
-    with db() as conn: return [dict(r) for r in conn.execute("SELECT * FROM import_dudas ORDER BY titulo").fetchall()]
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM import_dudas ORDER BY titulo")
+            return [dict(r) for r in cur.fetchall()]
 
 def get_import_duda(duda_id):
     with db() as conn:
-        row = conn.execute("SELECT * FROM import_dudas WHERE id = ?", (duda_id,)).fetchone()
-        return dict(row) if row else None
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM import_dudas WHERE id = %s", (duda_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
 
 def delete_import_duda(duda_id):
-    with db() as conn: conn.execute("DELETE FROM import_dudas WHERE id = ?", (duda_id,))
+    with db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM import_dudas WHERE id = %s", (duda_id,))
 
 init_db()
