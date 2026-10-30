@@ -77,7 +77,8 @@
         <div class="min-w-0">
             <label class="block text-xs text-gray-400 mb-1">Ordenar por</label>
             <select name="sort" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-2 sm:px-3 py-2 rounded text-xs sm:text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer font-medium">
-                <option value="added_desc" {% if sort == 'added_desc' or not sort %}selected{% endif %}> Añadidas (recientes primero)</option>
+                <option value="added_desc" {% if sort == 'added_desc' %}selected{% endif %}>🕒 Añadidas (recientes primero)</option>
+                <option value="name" {% if sort == 'name' or not sort %}selected{% endif %}>🔤 Nombre (A-Z)</option>
                 <option value="year_asc" {% if sort == 'year_asc' %}selected{% endif %}>📅 Año ↑ (más antiguas primero)</option>
                 <option value="year_desc" {% if sort == 'year_desc' %}selected{% endif %}>📅 Año ↓ (más nuevas primero)</option>
                 <option value="name" {% if sort == 'name' %}selected{% endif %}>🔤 Nombre (A-Z)</option>
