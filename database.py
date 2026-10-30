@@ -353,13 +353,21 @@ def delete_import_duda(duda_id):
 
 # === FUNCIONES PARA SERIES ===
 
-def list_series(q="", sort="added_desc", category="", country="", creator="", offset=0, limit=20):
+def list_series(q="", sort="added_desc", category="", country="", continent="", offset=0, limit=20):
     with db() as conn:
         with conn.cursor() as cur:
             query = "SELECT * FROM series WHERE 1=1"
             params = []
             if category: query += " AND category = %s"; params.append(category)
-            if country: query += " AND country = %s"; params.append(country)
+            if continent:
+                continent_countries = get_countries_by_continent(continent)
+            if continent_countries:
+                    placeholders = ','.join(['%s'] * len(continent_countries))
+                    query += f" AND country IN ({placeholders})"
+                    params.extend(continent_countries)
+            if country: 
+                query += " AND (country = %s OR country IN (SELECT iso_code FROM countries WHERE name = %s))"
+                params.extend([country, country])
             if creator: query += " AND creator = %s"; params.append(creator)    
 
             if q:
@@ -386,13 +394,21 @@ def list_series(q="", sort="added_desc", category="", country="", creator="", of
 
     return series
 
-def count_series(q="", category="", country="", creator=""):
+def count_series(q="", category="", country="", continent=""):
     with db() as conn:
         with conn.cursor() as cur:
             query = "SELECT * FROM series WHERE 1=1"
             params = []
             if category: query += " AND category = %s"; params.append(category)
-            if country: query += " AND country = %s"; params.append(country)
+            if continent:
+                continent_countries = get_countries_by_continent(continent)
+            if continent_countries:
+                    placeholders = ','.join(['%s'] * len(continent_countries))
+                    query += f" AND country IN ({placeholders})"
+                    params.extend(continent_countries)
+            if country: 
+                query += " AND (country = %s OR country IN (SELECT iso_code FROM countries WHERE name = %s))"
+                params.extend([country, country])
             if creator: query += " AND creator = %s"; params.append(creator)
 
             if q:
@@ -435,7 +451,28 @@ def get_series_countries():
     with db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT DISTINCT country FROM series WHERE country IS NOT NULL AND country != '' ORDER BY country")
-            return [r['country'] for r in cur.fetchall()]
+            raw_countries = [r['country'] for r in cur.fetchall()]
+    
+    # Traducir códigos ISO a nombres en español
+    from tmdb import get_country_spanish
+    translated = []
+    for c in raw_countries:
+        name = get_country_spanish(c)
+        if name:
+            translated.append(name)
+        elif c not in translated:
+            translated.append(c)
+    
+    return sorted(set(translated))
+
+def get_series_continents():
+    countries = get_series_countries()
+    continents = set()
+    for c in countries:
+        cont = get_continent_by_country(c)
+        if cont:
+            continents.add(cont)
+    return sorted(continents)
 
 def get_series_creators():
     with db() as conn:
