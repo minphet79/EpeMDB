@@ -80,6 +80,7 @@ def init_db():
                 name_original TEXT, first_air_date TEXT, country TEXT, 
                 category TEXT, creator TEXT, "cast" TEXT DEFAULT '[]', synopsis TEXT, 
                 poster_url TEXT, seasons INTEGER DEFAULT 0, episodes INTEGER DEFAULT 0)""")
+            cur.execute("ALTER TABLE series ADD COLUMN IF NOT EXISTS creator TEXT")
     migrate_sqlite_to_postgres()
 
 def normalize_title(t):
