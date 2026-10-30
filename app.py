@@ -315,3 +315,69 @@ async def serie_detail(request: Request, series_id: int):
         "request": request, "serie": s, 
         "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())
     })
+
+# === RUTAS PARA EDITAR SERIES ===
+
+@app.get("/edit-serie/{series_id}", response_class=HTMLResponse)
+async def edit_serie_page(request: Request, series_id: int):
+    s = db.get_series(series_id)
+    if not s: return HTMLResponse("No encontrada", status_code=404)
+    cast_list = [c.get("name", "") if isinstance(c, dict) else c for c in (json.loads(s.get("cast") or "[]") or [])]
+    return templates.TemplateResponse("edit_serie.html", {
+        "request": request, 
+        "serie": s, 
+        "cast_text": "\n".join(cast_list),
+        "categories": db.get_series_categories()
+    })
+
+@app.post("/save-serie/{series_id}")
+async def save_serie(
+    series_id: int, name: str = Form(""), name_original: str = Form(""), 
+    first_air_date: str = Form(""), country: str = Form(""), category: str = Form(""), 
+    creator: str = Form(""), synopsis: str = Form(""), cast_text: str = Form(""), 
+    poster_url: str = Form(""), tmdb_id: str = Form(""), seasons: str = Form(""), episodes: str = Form("")
+):
+    tmdb_id_int = int(tmdb_id) if tmdb_id and tmdb_id.isdigit() else None
+    
+    # Intentar obtener datos frescos de TMDB si hay ID válido
+    cast_list = []
+    if tmdb_id_int:
+        try:
+            tmdb_data = await tmdb.get_series_details(tmdb_id_int)
+            if tmdb_data and tmdb_data.get("cast"):
+                cast_list = [{"name": c.get("name", ""), "id": c.get("id"), "profile_path": c.get("profile_path"), "character": c.get("character", "")} for c in tmdb_data["cast"][:15]]
+                synopsis = synopsis or tmdb_data.get("synopsis")
+                poster_url = poster_url or tmdb_data.get("poster_url")
+                creator = creator or tmdb_data.get("creator")
+        except: pass
+    
+    # Si no hay reparto de TMDB, usar el texto manual
+    if not cast_list and cast_text.strip():
+        cast_list = [{"name": line.strip(), "id": None, "profile_path": None, "character": ""} for line in cast_text.strip().split("\n") if line.strip()]
+    
+    with db.db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE series SET 
+                    tmdb_id = %(tmdb_id)s, name = %(name)s, name_original = %(name_original)s, 
+                    first_air_date = %(first_air_date)s, country = %(country)s, category = %(category)s, 
+                    creator = %(creator)s, synopsis = %(synopsis)s, poster_url = %(poster_url)s, 
+                    cast = %(cast)s, seasons = %(seasons)s, episodes = %(episodes)s 
+                WHERE id = %(series_id)s
+            """, {
+                "tmdb_id": tmdb_id_int,
+                "name": name.strip() or None,
+                "name_original": name_original.strip() or None,
+                "first_air_date": first_air_date.strip() or None,
+                "country": country.strip() or None,
+                "category": category.strip() or None,
+                "creator": creator.strip() or None,
+                "synopsis": synopsis.strip() or None,
+                "poster_url": poster_url.strip() or None,
+                "cast": json.dumps(cast_list, ensure_ascii=False),
+                "seasons": int(seasons) if seasons.isdigit() else 0,
+                "episodes": int(episodes) if episodes.isdigit() else 0,
+                "series_id": series_id
+            })
+        conn.commit()
+    return RedirectResponse(f"/serie/{series_id}", status_code=303)
