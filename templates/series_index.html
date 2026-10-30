@@ -7,22 +7,7 @@
         <h1 class="text-xl sm:text-2xl font-bold text-white">Catálogo de Series</h1>
         <p class="text-xs sm:text-sm text-gray-400">{{ total_series }} serie{{ 's' if series|length != 1 else '' }} en tu colección</p>
     </div>
-    
-    <!-- Indicadores de estado -->
-    <div class="flex gap-2 sm:gap-3 text-xs">
-        {% if no_poster_count > 0 %}
-        <a href="/no-poster" class="bg-gray-700 hover:bg-gray-600 px-2 sm:px-3 py-1 sm:py-1.5 rounded text-gray-300 transition">
-            🖼️ {{ no_poster_count }} sin póster
-        </a>
-        {% endif %}
-        {% if pending_count > 0 %}
-        <a href="/failed" class="bg-gray-700 hover:bg-gray-600 px-2 sm:px-3 py-1 sm:py-1.5 rounded text-gray-300 transition">
-            ⚠️ {{ pending_count }} pendientes
-        </a>
-        {% endif %}
-    </div>
-</div>
-
+        
 <!-- Barra de Filtros Unificada (Responsive) -->
 <form method="GET" action="/series" class="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8 p-3 sm:p-4 bg-gray-800 rounded-lg border border-gray-700">
     
