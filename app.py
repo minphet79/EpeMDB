@@ -53,7 +53,20 @@ async def api_search_live(q: str = ""):
             if q_clean in normalize_search(dir_name):
                 director_stats.setdefault(normalize_search(dir_name), {"name": dir_name, "count": 0})["count"] += 1
     for d in sorted(director_stats.values(), key=lambda x: -x["count"])[:3]:
-        results.append({"type": "director", "label": d["name"], "sub": f"{d['count']} película{'s' if d['count'] != 1 else ''}", "url": f"/director?name={quote(d['name'])}", "icon": "🎥"})
+        results.append({"type": "director", "label": d["name"], "sub": f"{d['count']} película{'s' if d['count'] != 1 else ''}", "url": f"/director?name={quote(d['name'])}", "icon": ""})
+    
+    # Búsqueda en el reparto (actores)
+    actor_stats = {}
+    for m in all_movies:
+        cast_list = json.loads(m["cast"]) if m["cast"] else []
+        for c in cast_list:
+            if isinstance(c, dict):
+                actor_name = c.get("name", "")
+                if q_clean in normalize_search(actor_name):
+                    actor_stats.setdefault(normalize_search(actor_name), {"name": actor_name, "count": 0, "photo": c.get("profile_path")})["count"] += 1
+    for a in sorted(actor_stats.values(), key=lambda x: -x["count"])[:3]:
+        results.append({"type": "actor", "label": a["name"], "sub": f"{a['count']} película{'s' if a['count'] != 1 else ''}", "url": f"/actor/{a.get('id', 0)}", "icon": "🎬"})
+    
     return JSONResponse(results[:15])
 
 @app.get("/", response_class=HTMLResponse)
