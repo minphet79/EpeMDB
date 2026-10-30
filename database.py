@@ -93,6 +93,7 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
     if sort == "year_asc": movies.sort(key=lambda x: (x.get("year") or 0, normalize_title(x.get("title_original") or "")))
     elif sort == "year_desc": movies.sort(key=lambda x: (-(x.get("year") or 0), normalize_title(x.get("title_original") or "")))
     elif sort == "title_es": movies.sort(key=lambda x: normalize_title(x.get("title_es") or ""))
+    elif sort == "title_original": movies.sort(key=lambda x: normalize_title(x.get("title_original") or ""))
     else: movies.sort(key=lambda x: x.get("id", 0), reverse=True)
     return movies
 
