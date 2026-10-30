@@ -17,12 +17,13 @@ templates = Jinja2Templates(directory="templates")
 # === CONFIGURACIÓN DE SEGURIDAD ===
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
 
-# Manejador global para redirigir errores 401 al login
+# Manejador global: si te deniega el acceso, te manda al login recordando la URL original
 @app.exception_handler(401)
 async def unauthorized_handler(request: Request, exc: HTTPException):
-    return RedirectResponse(url="/login", status_code=303)
+    redirect_url = str(request.url)
+    return RedirectResponse(url=f"/login?redirect_url={redirect_url}", status_code=303)
 
-# Función para verificar si tienes la cookie de administrador
+# Función para verificar la cookie
 async def check_admin(admin_token: str = Cookie(None)):
     if admin_token != ADMIN_PASSWORD:
         raise HTTPException(status_code=401, detail="No autorizado")
@@ -476,17 +477,21 @@ async def confirm_reidentify(request: Request, series_id: int, new_tmdb_id: int)
 
 # === RUTAS DE LOGIN Y LOGOUT ===
 @app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request, error: str = ""):
-    return templates.TemplateResponse("login.html", {"request": request, "error": error})
+async def login_page(request: Request, redirect_url: str = "/", error: str = ""):
+    return templates.TemplateResponse("login.html", {
+        "request": request, 
+        "redirect_url": redirect_url, 
+        "error": error
+    })
 
 @app.post("/login")
-async def login_submit(password: str = Form(...)):
+async def login_submit(password: str = Form(...), redirect_url: str = Form("/")):
     if password == ADMIN_PASSWORD:
-        response = RedirectResponse(url="/", status_code=303)
-        # Guardamos la contraseña en una cookie segura
+        response = RedirectResponse(url=redirect_url, status_code=303)
         response.set_cookie(key="admin_token", value=ADMIN_PASSWORD, httponly=True, samesite="lax")
         return response
-    return RedirectResponse(url="/login?error=Contrase%C3%B1a%20incorrecta", status_code=303)
+    # Si la contraseña es incorrecta, vuelve al login con el error, pero mantiene el redirect_url
+    return RedirectResponse(url=f"/login?redirect_url={redirect_url}&error=Contrase%C3%B1a%20incorrecta", status_code=303)
 
 @app.get("/logout")
 async def logout():
