@@ -38,8 +38,6 @@ async def api_search_live(q: str = ""):
     q_clean = normalize_search(q)
     if len(q_clean) < 1: return JSONResponse([])
     results, seen_ids = [], set()
-    
-    # 1. Búsqueda en Películas
     all_movies = db.list_movies(q=q, limit=10000)
     for m in all_movies:
         if m["id"] in seen_ids: continue
@@ -47,35 +45,8 @@ async def api_search_live(q: str = ""):
         title_orig_norm = normalize_search(m.get("title_original", ""))
         if q_clean in title_es_norm or q_clean in title_orig_norm:
             priority = 3 if title_es_norm == q_clean else (4 if title_orig_norm == q_clean else (2.5 if title_es_norm.startswith(q_clean) or title_orig_norm.startswith(q_clean) else 2))
-            results.append({"type": "película", "label": f"{m['title_es']} ({m['year'] or '?'})", "sub": f"Título: {m.get('title_original') or '-'}", "url": f"/movie/{m['id']}", "icon": "🎬"})
+            results.append({"type": "película", "label": f"{m['title_es']} ({m['year'] or '?'})", "sub": f"Título: {m.get('title_original') or '-'}", "url": f"/movie/{m['id']}", "icon": ""})
             seen_ids.add(m["id"])
-            
-    # 2. Búsqueda en Series (Nombre y Reparto)
-    all_series = db.list_series(q=q, limit=10000)
-    for s in all_series:
-        if s["id"] in seen_ids: continue
-        name_norm = normalize_search(s.get("name", ""))
-        name_orig_norm = normalize_search(s.get("name_original", ""))
-        
-        # Buscar por nombre
-        if q_clean in name_norm or q_clean in name_orig_norm:
-            year = s.get("first_air_date", "")[:4] if s.get("first_air_date") else "?"
-            results.append({"type": "serie", "label": f"{s['name']} ({year})", "sub": f"Temporadas: {s.get('seasons', '?')} | {s.get('country', '?')}", "url": f"/serie/{s['id']}", "icon": "📺"})
-            seen_ids.add(s["id"])
-            continue # Si ya la agregamos por nombre, no la agregamos doble por actor
-
-        # Buscar por reparto (Actores de series)
-        cast_list = json.loads(s["cast"]) if s["cast"] else []
-        for c in cast_list:
-            if isinstance(c, dict):
-                actor_name = c.get("name", "")
-                if q_clean in normalize_search(actor_name):
-                    year = s.get("first_air_date", "")[:4] if s.get("first_air_date") else "?"
-                    results.append({"type": "serie", "label": f"{s['name']} ({year})", "sub": f"Actúa: {actor_name}", "url": f"/serie/{s['id']}", "icon": "📺"})
-                    seen_ids.add(s["id"])
-                    break # Solo agregar una vez por serie
-
-    # 3. Búsqueda en Directores (Películas)
     director_stats = {}
     for m in all_movies:
         for dir_name in _split_directors(m.get("director", "")):
@@ -84,7 +55,7 @@ async def api_search_live(q: str = ""):
     for d in sorted(director_stats.values(), key=lambda x: -x["count"])[:3]:
         results.append({"type": "director", "label": d["name"], "sub": f"{d['count']} película{'s' if d['count'] != 1 else ''}", "url": f"/director?name={quote(d['name'])}", "icon": "🎥"})
     
-    # 4. Búsqueda en Reparto (Películas)
+    # Búsqueda en el reparto (actores) - AHORA GUARDAMOS EL ID
     actor_stats = {}
     for m in all_movies:
         cast_list = json.loads(m["cast"]) if m["cast"] else []
@@ -121,28 +92,20 @@ async def add_form(request: Request):
     return templates.TemplateResponse("add.html", {"request": request})
 
 @app.post("/search", response_class=HTMLResponse)
-async def search_tmdb(request: Request, type: str = Form("movie"), query: str = Form(...), year: str = Form("")):
-    if type == "tv":
-        results = await tmdb.search_series(query, int(year) if year.isdigit() else None)
-    else:
-        results = await tmdb.search_movies(query, int(year) if year.isdigit() else None)
-    return templates.TemplateResponse("add.html", {"request": request, "results": results, "query": query, "year": year, "type": type})
+async def search_tmdb(request: Request, query: str = Form(...), year: str = Form("")):
+    results = await tmdb.search_movies(query, int(year) if year.isdigit() else None)
+    return templates.TemplateResponse("search.html", {"request": request, "results": results, "query": query})
 
 @app.get("/import/{tmdb_id}", response_class=HTMLResponse)
-async def import_item(request: Request, tmdb_id: int, type: str = "movie"):
-    if type == "tv":
-        item_id = db.insert_series(await tmdb.get_series_details(tmdb_id))
-        return RedirectResponse(f"/serie/{item_id}", status_code=303)
-    else:
-        item_id = db.insert_movie(await tmdb.get_movie_details(tmdb_id))
-        return RedirectResponse(f"/movie/{item_id}", status_code=303)
+async def import_movie(request: Request, tmdb_id: int):
+    movie_id = db.insert_movie(await tmdb.get_movie_details(tmdb_id))
+    return RedirectResponse(f"/movie/{movie_id}", status_code=303)
 
 @app.get("/movie/{movie_id}", response_class=HTMLResponse)
 async def movie_detail(request: Request, movie_id: int):
     m = db.get_movie(movie_id)
     if not m: return HTMLResponse("No encontrada", status_code=404)
     m["cast"] = json.loads(m["cast"]) if m["cast"] else []
-    return templates.TemplateResponse("movie.html", {"request": request, "movie": m, "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())})
 
 @app.post("/delete/{movie_id}")
 async def delete(movie_id: int):
@@ -169,12 +132,10 @@ async def director_page(request: Request, name: str = ""):
     directors_list = _split_directors(director_name)
     director_norms = [normalize_search(d) for d in directors_list]
     director_movies = [m for m in db.list_movies(limit=10000) if m.get("director") and all(dn in normalize_search(m["director"]) for dn in director_norms)]
-    return templates.TemplateResponse("director.html", {"request": request, "director_name": director_name, "movies": director_movies, "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())})
 
 @app.get("/failed", response_class=HTMLResponse)
 async def failed_movies(request: Request):
     failed = db.list_failed_movies()
-    return templates.TemplateResponse("failed.html", {"request": request, "failed": failed, "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(failed)})
 
 @app.post("/delete-failed/{failed_id}")
 async def delete_failed(failed_id: int):
@@ -191,7 +152,6 @@ async def delete_all_failed():
 @app.get("/no-poster", response_class=HTMLResponse)
 async def no_poster(request: Request):
     movies = db.get_movies_without_poster()
-    return templates.TemplateResponse("no_poster.html", {"request": request, "movies": movies, "no_poster_count": len(movies), "pending_count": len(db.list_failed_movies())})
 
 @app.post("/update-poster/{movie_id}")
 async def update_poster(request: Request, movie_id: int, poster_url: str = Form(...)):
@@ -202,7 +162,6 @@ async def update_poster(request: Request, movie_id: int, poster_url: str = Form(
 async def import_dudas_view(request: Request):
     dudas = db.list_import_dudas()
     for d in dudas: d["candidatos"] = json.loads(d["candidatos"]) if d["candidatos"] else []
-    return templates.TemplateResponse("import_dudas.html", {"request": request, "dudas": dudas, "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())})
 
 @app.get("/edit-movie/{movie_id}", response_class=HTMLResponse)
 async def edit_movie_page(request: Request, movie_id: int):
@@ -241,7 +200,6 @@ async def actor_detail(request: Request, actor_id: int):
                 actor_movies.append(m); actor_name = c.get("name", "Desconocido")
                 if c.get("profile_path"): actor_photo = f"https://image.tmdb.org/t/p/w300{c['profile_path']}" if not c['profile_path'].startswith('http') else c['profile_path']
                 break
-    return templates.TemplateResponse("actor.html", {"request": request, "actor_name": actor_name, "actor_photo": actor_photo, "actor_movies": actor_movies, "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())})
 
 @app.post("/update-actor-photo")
 async def update_actor_photo(request: Request, actor_id: str = Form(""), actor_name: str = Form(""), photo_url: str = Form(...), movie_id: int = Form(...)):
@@ -258,7 +216,6 @@ async def remove_actor_photo(request: Request, actor_id: str = Form(""), actor_n
 @app.get("/review-uk", response_class=HTMLResponse)
 async def review_uk_movies(request: Request):
     movies = db.get_uk_related_movies()
-    return templates.TemplateResponse("review_uk.html", {"request": request, "movies": movies, "total": len(movies), "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())})
 
 @app.get("/show-english-synopsis", response_class=HTMLResponse)
 async def show_english_synopsis(request: Request):
@@ -290,152 +247,3 @@ async def apply_translations(request: Request, translations_text: str = Form(...
                 with db.db() as conn: conn.execute("UPDATE movies SET synopsis = ? WHERE id = ?", (synopsis_es, current_id))
                 updated += 1; current_id = None
     return HTMLResponse(f'<div class="bg-green-900 border border-green-600 p-6 rounded text-center max-w-2xl mx-auto mt-10"><p class="text-green-300 font-semibold text-lg">✅ Traducciones aplicadas</p><p class="text-green-200 text-sm mt-2">{updated} sinopsis actualizadas.</p><a href="/" class="inline-block mt-4 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al Inicio</a></div>')
-
-# === RUTAS PARA SERIES ===
-
-@app.get("/series", response_class=HTMLResponse)
-async def series_index(request: Request, q: str = "", sort: str = "name", category: str = "", country: str = "", continent: str = "", page: int = 1, per_page: int = 20):
-    offset = (page - 1) * per_page
-    series_list = db.list_series(q=q, sort=sort, category=category, country=country, continent=continent, offset=offset, limit=per_page)
-    total = db.count_series(q=q, category=category, country=country, continent=continent)
-    total_pages = (total + per_page - 1) // per_page
-    return templates.TemplateResponse("series_index.html", {
-        "request": request, "series": series_list, "q": q, "sort": sort, "category": category, "country": country, "continent": continent,
-        "categories": db.get_series_categories(), "continents": db.get_series_continents(), "countries": db.get_series_countries(),
-        "page": page, "total_pages": total_pages, "total_series": total, "per_page": per_page,
-        "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())
-    })
-
-@app.get("/serie/{series_id}", response_class=HTMLResponse)
-async def serie_detail(request: Request, series_id: int):
-    s = db.get_series(series_id)
-    if not s: return HTMLResponse("Serie no encontrada", status_code=404)
-    s["cast"] = json.loads(s["cast"]) if s["cast"] else []
-    return templates.TemplateResponse("serie.html", {
-        "request": request, "serie": s, 
-        "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies())
-    })
-
-# === RUTAS PARA EDITAR SERIES ===
-
-@app.get("/edit-serie/{series_id}", response_class=HTMLResponse)
-async def edit_serie_page(request: Request, series_id: int):
-    s = db.get_series(series_id)
-    if not s: return HTMLResponse("No encontrada", status_code=404)
-    cast_list = [c.get("name", "") if isinstance(c, dict) else c for c in (json.loads(s.get("cast") or "[]") or [])]
-    return templates.TemplateResponse("edit_serie.html", {
-        "request": request, 
-        "serie": s, 
-        "cast_text": "\n".join(cast_list),
-        "categories": db.get_series_categories()
-    })
-
-@app.post("/save-serie/{series_id}")
-async def save_serie(
-    series_id: int, name: str = Form(""), name_original: str = Form(""), 
-    first_air_date: str = Form(""), country: str = Form(""), category: str = Form(""), 
-    creator: str = Form(""), synopsis: str = Form(""), cast_text: str = Form(""), 
-    poster_url: str = Form(""), tmdb_id: str = Form(""), seasons: str = Form(""), episodes: str = Form("")
-):
-    tmdb_id_int = int(tmdb_id) if tmdb_id and tmdb_id.isdigit() else None
-    
-    # Intentar obtener datos frescos de TMDB si hay ID válido
-    cast_list = []
-    if tmdb_id_int:
-        try:
-            tmdb_data = await tmdb.get_series_details(tmdb_id_int)
-            if tmdb_data and tmdb_data.get("cast"):
-                cast_list = [{"name": c.get("name", ""), "id": c.get("id"), "profile_path": c.get("profile_path"), "character": c.get("character", "")} for c in tmdb_data["cast"][:15]]
-                synopsis = synopsis or tmdb_data.get("synopsis")
-                poster_url = poster_url or tmdb_data.get("poster_url")
-                creator = creator or tmdb_data.get("creator")
-        except: pass
-    
-    # Si no hay reparto de TMDB, usar el texto manual
-    if not cast_list and cast_text.strip():
-        cast_list = [{"name": line.strip(), "id": None, "profile_path": None, "character": ""} for line in cast_text.strip().split("\n") if line.strip()]
-    
-    with db.db() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                UPDATE series SET 
-                    tmdb_id = %(tmdb_id)s, name = %(name)s, name_original = %(name_original)s, 
-                    first_air_date = %(first_air_date)s, country = %(country)s, category = %(category)s, 
-                    creator = %(creator)s, synopsis = %(synopsis)s, poster_url = %(poster_url)s, 
-                    "cast" = %(cast)s, seasons = %(seasons)s, episodes = %(episodes)s 
-                WHERE id = %(series_id)s
-            """, {
-                "tmdb_id": tmdb_id_int,
-                "name": name.strip() or None,
-                "name_original": name_original.strip() or None,
-                "first_air_date": first_air_date.strip() or None,
-                "country": country.strip() or None,
-                "category": category.strip() or None,
-                "creator": creator.strip() or None,
-                "synopsis": synopsis.strip() or None,
-                "poster_url": poster_url.strip() or None,
-                "cast": json.dumps(cast_list, ensure_ascii=False),
-                "seasons": int(seasons) if seasons.isdigit() else 0,
-                "episodes": int(episodes) if episodes.isdigit() else 0,
-                "series_id": series_id
-            })
-        conn.commit()
-    return RedirectResponse(f"/serie/{series_id}", status_code=303)
-
-# === RUTAS PARA RE-IDENTIFICAR SERIES EN TMDB ===
-
-@app.get("/reidentify-serie/{series_id}", response_class=HTMLResponse)
-async def reidentify_serie_form(request: Request, series_id: int):
-    s = db.get_series(series_id)
-    if not s: return HTMLResponse("Serie no encontrada", status_code=404)
-    return templates.TemplateResponse("reidentify_serie.html", {
-        "request": request, "serie": s, "results": None, "query": ""
-    })
-
-@app.post("/reidentify-serie/{series_id}", response_class=HTMLResponse)
-async def reidentify_serie_search(request: Request, series_id: int, query: str = Form(...), year: str = Form("")):
-    s = db.get_series(series_id)
-    if not s: return HTMLResponse("Serie no encontrada", status_code=404)
-    results = await tmdb.search_series(query, int(year) if year.isdigit() else None)
-    return templates.TemplateResponse("reidentify_serie.html", {
-        "request": request, "serie": s, "results": results, "query": query
-    })
-
-@app.get("/confirm-reidentify/{series_id}/{new_tmdb_id}", response_class=HTMLResponse)
-async def confirm_reidentify(request: Request, series_id: int, new_tmdb_id: int):
-    s = db.get_series(series_id)
-    if not s: return HTMLResponse("Serie no encontrada", status_code=404)
-    
-    with db.db() as conn:
-        with conn.cursor() as cur:
-            # 1. Verificar si el nuevo tmdb_id ya existe en la BD
-            cur.execute("SELECT id FROM series WHERE tmdb_id = %s", (new_tmdb_id,))
-            existing_row = cur.fetchone()
-            
-            if existing_row:
-                # ¡La serie correcta ya existe! Simplemente borramos la entrada incorrecta.
-                cur.execute("DELETE FROM series WHERE id = %s", (series_id,))
-                conn.commit()
-                return RedirectResponse("/series", status_code=303)
-            
-            # 2. Si no existe, obtenemos los datos frescos y actualizamos la entrada incorrecta
-            new_data = await tmdb.get_series_details(new_tmdb_id)
-            if not new_data: return HTMLResponse("No se pudo obtener la nueva serie de TMDB", status_code=500)
-            
-            new_data["category"] = s.get("category", "")  # Mantener la categoría que el usuario haya asignado
-            
-            cur.execute("""
-                UPDATE series SET 
-                    tmdb_id = %(tmdb_id)s, name = %(name)s, name_original = %(name_original)s,
-                    first_air_date = %(first_air_date)s, country = %(country)s, synopsis = %(synopsis)s,
-                    poster_url = %(poster_url)s, seasons = %(seasons)s, episodes = %(episodes)s,
-                    "cast" = %(cast)s, creator = %(creator)s, category = %(category)s
-                WHERE id = %(series_id)s
-            """, {
-                **new_data,
-                "cast": json.dumps(new_data.get("cast") or [], ensure_ascii=False),
-                "series_id": series_id
-            })
-            conn.commit()
-            
-    return RedirectResponse(f"/serie/{series_id}", status_code=303)
