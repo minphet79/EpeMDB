@@ -72,29 +72,36 @@ def get_continent_by_country(country):
 
 def get_continents_list(): return CONTINENTES_VALIDOS
 
-def list_movies(q="", sort="added_desc", continent="", country="", director="", offset=0, limit=100):
+def list_movies(q="", sort="added_desc", continent="", country="", director="", offset=0, limit=20):
     with db() as conn:
         query = "SELECT * FROM movies WHERE 1=1"
         params = []
         if continent: query += " AND continent = ?"; params.append(continent)
         if country: query += " AND country = ?"; params.append(country)
         if director: query += " AND director = ?"; params.append(director)
-        
+
         if q:
             rows = conn.execute(query, params).fetchall()
             movies = [dict(r) for r in rows]
             q_norm = normalize_title(q)
             movies = [m for m in movies if q_norm in normalize_title(m.get("title_es", "")) or q_norm in normalize_title(m.get("title_original", "")) or q_norm in normalize_title(m.get("director", ""))]
         else:
-            query += f" ORDER BY id DESC LIMIT {limit} OFFSET {offset}"
+            # La ordenación se hace AQUÍ, en la base de datos, sobre TODA la colección
+            if sort == "year_asc":
+                query += " ORDER BY year ASC, title_original ASC"
+            elif sort == "year_desc":
+                query += " ORDER BY year DESC, title_original ASC"
+            elif sort == "title_es":
+                query += " ORDER BY title_es COLLATE NOCASE ASC"
+            elif sort == "title_original":
+                query += " ORDER BY title_original COLLATE NOCASE ASC"
+            else:
+                query += " ORDER BY id DESC"
+
+            query += f" LIMIT {limit} OFFSET {offset}"
             rows = conn.execute(query, params).fetchall()
             movies = [dict(r) for r in rows]
-    
-    if sort == "year_asc": movies.sort(key=lambda x: (x.get("year") or 0, normalize_title(x.get("title_original") or "")))
-    elif sort == "year_desc": movies.sort(key=lambda x: (-(x.get("year") or 0), normalize_title(x.get("title_original") or "")))
-    elif sort == "title_es": movies.sort(key=lambda x: normalize_title(x.get("title_es") or ""))
-    elif sort == "title_original": movies.sort(key=lambda x: normalize_title(x.get("title_original") or ""))
-    else: movies.sort(key=lambda x: x.get("id", 0), reverse=True)
+
     return movies
 
 def count_movies(q="", continent="", country="", director=""):
