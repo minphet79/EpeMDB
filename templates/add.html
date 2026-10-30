@@ -2,25 +2,32 @@
 {% block content %}
 
 <div class="max-w-3xl mx-auto">
-    <h1 class="text-2xl font-bold mb-6 text-white">Añadir película desde TMDB</h1>
+    <h1 class="text-2xl font-bold mb-6 text-white">Añadir desde TMDB</h1>
     
     <!-- Formulario de búsqueda -->
     <form method="POST" action="/search" class="flex flex-col sm:flex-row gap-3 mb-8 p-4 bg-gray-800 rounded-lg border border-gray-700">
+        <div class="w-full sm:w-40">
+            <label class="block text-xs text-gray-400 mb-1">Tipo</label>
+            <select name="type" class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="movie" {% if type == 'movie' or not type %}selected{% endif %}>Película</option>
+                <option value="tv" {% if type == 'tv' %}selected{% endif %}>Serie</option>
+            </select>
+        </div>
         <div class="flex-1">
             <label class="block text-xs text-gray-400 mb-1">Título</label>
-            <input type="text" name="query" required placeholder="Ej: Blade Runner, El Padrino, Asterix..." 
+            <input type="text" name="query" required placeholder="Ej: Breaking Bad, El Padrino..." 
                    value="{{ query or '' }}"
                    class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
         <div class="w-full sm:w-32">
             <label class="block text-xs text-gray-400 mb-1">Año (opcional)</label>
-            <input type="text" name="year" placeholder="1982" 
+            <input type="text" name="year" placeholder="2008" 
                    value="{{ year or '' }}"
                    class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
         <div class="flex items-end">
             <button type="submit" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded text-sm font-medium transition">
-                🔍 Buscar en TMDB
+                🔍 Buscar
             </button>
         </div>
     </form>
@@ -36,8 +43,7 @@
                 <div class="flex-shrink-0">
                     {% if r.poster_path %}
                         <img src="https://image.tmdb.org/t/p/w185{{ r.poster_path }}" 
-                             class="w-20 aspect-[2/3] object-cover rounded shadow"
-                             loading="lazy">
+                             class="w-20 aspect-[2/3] object-cover rounded shadow" loading="lazy">
                     {% else %}
                         <div class="w-20 aspect-[2/3] bg-gray-700 rounded flex items-center justify-center text-[10px] text-gray-500">Sin img</div>
                     {% endif %}
@@ -46,17 +52,17 @@
                 <!-- Info -->
                 <div class="flex-1 min-w-0">
                     <h3 class="text-sm font-semibold text-white leading-tight mb-1">
-                        {{ r.title or r.original_title or '?' }}
+                        {{ r.title or r.name or r.original_title or r.original_name or '?' }}
                     </h3>
-                    {% if r.original_title and r.original_title != r.title %}
-                        <p class="text-[10px] text-gray-500 italic truncate">{{ r.original_title }}</p>
+                    {% if (r.original_title or r.original_name) and (r.original_title or r.original_name) != (r.title or r.name) %}
+                        <p class="text-[10px] text-gray-500 italic truncate">{{ r.original_title or r.original_name }}</p>
                     {% endif %}
                     <p class="text-xs text-gray-400 mt-1">
-                        📅 {{ (r.release_date or '')[:4] or 'Año desconocido' }}
+                        📅 {{ (r.release_date or r.first_air_date or '')[:4] or 'Año desconocido' }}
                     </p>
                     
                     <!-- Botón Importar -->
-                    <a href="/import/{{ r.id }}" 
+                    <a href="/import/{{ r.id }}?type={{ type or 'movie' }}" 
                        class="inline-block mt-3 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-medium transition">
                         ✅ Añadir a mi colección
                     </a>
