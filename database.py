@@ -21,7 +21,7 @@ def db():
         conn.close()
 
 def migrate_sqlite_to_postgres():
-    sqlite_path = os.path.join(os.path.dirname(__file__), "movies.db")
+    sqlite_path = os.path.join(os.path.dirname(__file__), "data", "movies.db")
     if not os.path.exists(sqlite_path):
         return
 
