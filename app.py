@@ -382,41 +382,111 @@ async def save_serie(
     series_id: int, name: str = Form(""), name_original: str = Form(""), 
     first_air_date: str = Form(""), country: str = Form(""), category: str = Form(""), 
     creator: str = Form(""), synopsis: str = Form(""), cast_text: str = Form(""), 
-    poster_url: str = Form(""), tmdb_id: str = Form(""), seasons: str = Form(""), episodes: str = Form(""), admin: bool = Depends(check_admin)
+    poster_url: str = Form(""), tmdb_id: str = Form(""), seasons: str = Form(""), 
+    episodes: str = Form(""), admin: bool = Depends(check_admin)
 ):
     tmdb_id_int = int(tmdb_id) if tmdb_id and tmdb_id.isdigit() else None
-    cast_list = []
+
+    # Cargar serie actual para conservar IDs/fotos de actores ya existentes
+    current_serie = db.get_series(series_id) or {}
+    current_cast_raw = current_serie.get("cast") or "[]"
+
+    try:
+        if isinstance(current_cast_raw, str):
+            current_cast = json.loads(current_cast_raw)
+        else:
+            current_cast = current_cast_raw or []
+    except Exception:
+        current_cast = []
+
+    tmdb_cast_list = []
+
+    # Traer datos de TMDB solo como respaldo, no para pisar el reparto editado manualmente
     if tmdb_id_int:
         try:
             tmdb_data = await tmdb.get_series_details(tmdb_id_int)
-            if tmdb_data and tmdb_data.get("cast"):
-                cast_list = [{"name": c.get("name", ""), "id": c.get("id"), "profile_path": c.get("profile_path"), "character": c.get("character", "")} for c in tmdb_data["cast"][:15]]
-                synopsis = synopsis or tmdb_data.get("synopsis")
-                poster_url = poster_url or tmdb_data.get("poster_url")
-                creator = creator or tmdb_data.get("creator")
-        except: pass
-    if not cast_list and cast_text.strip():
-        cast_list = [{"name": line.strip(), "id": None, "profile_path": None, "character": ""} for line in cast_text.strip().split("\n") if line.strip()]
+            if tmdb_data:
+                if tmdb_data.get("cast"):
+                    tmdb_cast_list = [
+                        {
+                            "name": c.get("name", ""),
+                            "id": c.get("id"),
+                            "profile_path": c.get("profile_path"),
+                            "character": c.get("character", "")
+                        }
+                        for c in tmdb_data["cast"][:15]
+                        if c.get("name")
+                    ]
+
+                synopsis = synopsis or tmdb_data.get("synopsis") or ""
+                poster_url = poster_url or tmdb_data.get("poster_url") or ""
+                creator = creator or tmdb_data.get("creator") or ""
+        except Exception:
+            pass
+
+    # IMPORTANTE:
+    # Si el usuario escribió reparto manual, ese reparto manda.
+    # Se intenta conservar id/foto/personaje si el nombre ya existía en la BD o en TMDB.
+    cast_list = []
+
+    if cast_text.strip():
+        known_cast = {}
+
+        for c in current_cast + tmdb_cast_list:
+            if isinstance(c, dict) and c.get("name"):
+                known_cast[normalize_search(c.get("name"))] = c
+
+        for line in cast_text.strip().split("\n"):
+            actor_name = line.strip()
+            if not actor_name:
+                continue
+
+            old = known_cast.get(normalize_search(actor_name), {})
+
+            cast_list.append({
+                "name": actor_name,
+                "id": old.get("id"),
+                "profile_path": old.get("profile_path"),
+                "character": old.get("character", "")
+            })
+    else:
+        # Si no hay reparto manual, usar el de TMDB si existe; si no, conservar el actual
+        cast_list = tmdb_cast_list or current_cast
+
     with db.db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE series SET 
-                    tmdb_id = %(tmdb_id)s, name = %(name)s, name_original = %(name_original)s, 
-                    first_air_date = %(first_air_date)s, country = %(country)s, category = %(category)s, 
-                    creator = %(creator)s, synopsis = %(synopsis)s, poster_url = %(poster_url)s, 
-                    "cast" = %(cast)s, seasons = %(seasons)s, episodes = %(episodes)s 
+                    tmdb_id = %(tmdb_id)s,
+                    name = %(name)s,
+                    name_original = %(name_original)s, 
+                    first_air_date = %(first_air_date)s,
+                    country = %(country)s,
+                    category = %(category)s, 
+                    creator = %(creator)s,
+                    synopsis = %(synopsis)s,
+                    poster_url = %(poster_url)s, 
+                    "cast" = %(cast)s,
+                    seasons = %(seasons)s,
+                    episodes = %(episodes)s 
                 WHERE id = %(series_id)s
             """, {
-                "tmdb_id": tmdb_id_int, "name": name.strip() or None, "name_original": name_original.strip() or None,
-                "first_air_date": first_air_date.strip() or None, "country": country.strip() or None,
-                "category": category.strip() or None, "creator": creator.strip() or None,
-                "synopsis": synopsis.strip() or None, "poster_url": poster_url.strip() or None,
+                "tmdb_id": tmdb_id_int,
+                "name": name.strip() or None,
+                "name_original": name_original.strip() or None,
+                "first_air_date": first_air_date.strip() or None,
+                "country": country.strip() or None,
+                "category": category.strip() or None,
+                "creator": creator.strip() or None,
+                "synopsis": synopsis.strip() or None,
+                "poster_url": poster_url.strip() or None,
                 "cast": json.dumps(cast_list, ensure_ascii=False),
                 "seasons": int(seasons) if seasons.isdigit() else 0,
                 "episodes": int(episodes) if episodes.isdigit() else 0,
                 "series_id": series_id
             })
         conn.commit()
+
     return RedirectResponse(f"/serie/{series_id}", status_code=303)
 
 @app.get("/reidentify-serie/{series_id}", response_class=HTMLResponse)
