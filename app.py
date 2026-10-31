@@ -135,6 +135,17 @@ async def index(request: Request, q: str = "", sort: str = "", continent: str = 
     
     offset = (page - 1) * per_page
     movies = db.list_movies(q, sort, continent, country, director, tag, offset=offset, limit=per_page)
+    
+    # Parsear las etiquetas de texto JSON a lista de Python para el template
+    for m in movies:
+        if m.get("tags"):
+            try:
+                m["tags"] = json.loads(m["tags"]) if isinstance(m["tags"], str) else m["tags"]
+            except Exception:
+                m["tags"] = []
+        else:
+            m["tags"] = []
+            
     total = db.count_movies(q, continent, country, director, tag)
     total_pages = (total + per_page - 1) // per_page
     return templates.TemplateResponse("index.html", {
