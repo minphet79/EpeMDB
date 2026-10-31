@@ -108,8 +108,7 @@
                     <!-- Badges de Etiquetas -->
                     {% if m.tags %}
                         <div class="absolute top-2 left-2 flex flex-wrap gap-1">
-                            {% set tags_list = m.tags | fromjson if m.tags is string else m.tags %}
-                            {% for t in tags_list %}
+                            {% for t in m.tags %}
                                 <span class="bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded font-bold backdrop-blur-sm">
                                     {% if t == 'MARVEL' %}🛡️
                                     {% elif t == 'DC COMICS' %}🦇
