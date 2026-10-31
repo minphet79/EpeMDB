@@ -521,6 +521,17 @@ async def update_serie_poster(request: Request, series_id: int, poster_url: str 
     return RedirectResponse(f"/serie/{series_id}", status_code=303)
 
 # === RUTA DE COMPARACIÓN CON EXCEL/CSV ===
+@app.get("/comparar-excel", response_class=HTMLResponse)
+async def comparar_excel_form(request: Request, admin: bool = Depends(check_admin)):
+    return templates.TemplateResponse("comparar_excel.html", {
+        "request": request, 
+        "resultados": None, 
+        "total_rows": 0, 
+        "total_faltantes": 0, 
+        "total_posibles": 0, 
+        "total_encontradas": 0
+    })
+
 @app.post("/comparar-excel", response_class=HTMLResponse)
 async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...), admin: bool = Depends(check_admin)):
     contents = await archivo.read()
@@ -529,7 +540,7 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
     except UnicodeDecodeError:
         text = contents.decode('latin-1')
     
-    # Detectar delimitador automáticamente
+    # Detectar delimitador automáticamente (coma o punto y coma)
     first_line = text.split('\n')[0]
     delimiter = ';' if ';' in first_line else ','
     print(f"📊 Delimitador detectado: '{delimiter}'")
@@ -609,7 +620,6 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
         # 1. Búsqueda exacta por título original
         if norm_excel in db_origins:
             db_movie = db_origins[norm_excel]
-            # Si hay año en Excel, verificar que coincida
             if excel_year_int and db_movie.get('year'):
                 if abs(db_movie['year'] - excel_year_int) <= 1:
                     status = "✅ Encontrada"
@@ -639,7 +649,6 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
                 matches = difflib.get_close_matches(norm_excel, db_origins_keys, n=1, cutoff=0.85)
                 if matches:
                     matched_movie = db_origins[matches[0]]
-                    # Verificar año si está disponible
                     if excel_year_int and matched_movie.get('year'):
                         if abs(matched_movie['year'] - excel_year_int) <= 2:
                             status = "⚠️ Posible coincidencia"
