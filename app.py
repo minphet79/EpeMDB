@@ -427,38 +427,59 @@ async def apply_translations_form(request: Request):
 @app.post("/apply-translations", response_class=HTMLResponse)
 async def apply_translations(request: Request, translations_text: str = Form(...), admin: bool = Depends(check_admin)):
     updated = 0
-    current_id = None
     errors = []
+    debug_lines = []
+    current_id = None
     
     for line in translations_text.strip().split('\n'):
-        line = line.strip()
-        if line.startswith('ID:'):
-            try:
-                current_id = int(line.replace('ID:', '').strip())
-            except:
-                current_id = None
-        elif line.startswith('Sinopsis ES:') and current_id:
-            synopsis_es = line.replace('Sinopsis ES:', '').strip()
-            if synopsis_es:
+        line_stripped = line.strip()
+        debug_lines.append(f"LINEA: [{line_stripped}]")
+        
+        # Detectar ID de forma flexible (acepta "ID: 123", "ID:123", "id: 123", etc.)
+        if line_stripped.lower().startswith('id'):
+            # Extraer el número después de los dos puntos
+            parts = line_stripped.split(':', 1)
+            if len(parts) == 2:
                 try:
-                    with db.db() as conn:
-                        with conn.cursor() as cur:
-                            cur.execute("UPDATE movies SET synopsis = %s WHERE id = %s", (synopsis_es, current_id))
-                        conn.commit()
-                    updated += 1
-                except Exception as e:
-                    errors.append(f"Error con ID {current_id}: {str(e)}")
+                    current_id = int(parts[1].strip())
+                    debug_lines.append(f"  -> ID detectado: {current_id}")
+                except:
+                    current_id = None
+                    debug_lines.append(f"  -> No se pudo parsear ID")
+        
+        # Detectar sinopsis de forma flexible
+        elif line_stripped.lower().startswith('sinopsis') and current_id:
+            # Buscar el contenido después de los dos puntos
+            parts = line_stripped.split(':', 1)
+            if len(parts) == 2:
+                synopsis_es = parts[1].strip()
+                if synopsis_es:
+                    try:
+                        with db.db() as conn:
+                            with conn.cursor() as cur:
+                                cur.execute("UPDATE movies SET synopsis = %s WHERE id = %s", (synopsis_es, current_id))
+                            conn.commit()
+                        updated += 1
+                        debug_lines.append(f"  -> Actualizado ID {current_id}: {len(synopsis_es)} chars")
+                    except Exception as e:
+                        errors.append(f"Error con ID {current_id}: {str(e)}")
+                        debug_lines.append(f"  -> ERROR: {str(e)}")
                 current_id = None
     
+    debug_text = "<br>".join(debug_lines[:50])  # Mostrar solo las primeras 50 líneas para no saturar
     error_msg = ""
     if errors:
         error_msg = f'<p class="text-red-300 text-sm mt-2">Errores: {"; ".join(errors)}</p>'
     
     return HTMLResponse(f'''
-        <div class="bg-green-900 border border-green-600 p-6 rounded text-center max-w-2xl mx-auto mt-10">
+        <div class="bg-gray-900 border border-gray-600 p-6 rounded text-center max-w-4xl mx-auto mt-10">
             <p class="text-green-300 font-semibold text-lg">✅ Traducciones aplicadas</p>
             <p class="text-green-200 text-sm mt-2">{updated} sinopsis actualizadas.</p>
             {error_msg}
+            <div class="mt-4 p-3 bg-gray-800 rounded text-left">
+                <p class="text-yellow-300 text-xs font-bold mb-2">DEBUG - Últimas líneas procesadas:</p>
+                <p class="text-gray-400 text-xs font-mono whitespace-pre-wrap">{debug_text}</p>
+            </div>
             <a href="/" class="inline-block mt-4 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al Inicio</a>
         </div>
     ''')
