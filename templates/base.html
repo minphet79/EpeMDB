@@ -19,14 +19,19 @@
             
             <!-- Botones de Navegación -->
             <div class="flex gap-2 sm:gap-3 flex-shrink-0">
+                {% if request.url.path.startswith('/series') or request.url.path.startswith('/serie/') %}
+                <a href="/" class="bg-indigo-600 hover:bg-indigo-700 px-4 sm:px-6 py-2 sm:py-3 rounded text-sm sm:text-base font-medium transition shadow flex items-center gap-1">
+                    🎬 Películas
+                </a>
+                {% else %}
                 <a href="/series" class="bg-purple-600 hover:bg-purple-700 px-4 sm:px-6 py-2 sm:py-3 rounded text-sm sm:text-base font-medium transition shadow flex items-center gap-1">
                     📺 Series
                 </a>
+                {% endif %}
                 <a href="/add" class="bg-blue-600 hover:bg-blue-700 px-4 sm:px-6 py-2 sm:py-3 rounded text-sm sm:text-base font-medium transition shadow flex-shrink-0">
                     + Añadir
                 </a>
-            </div>
-            
+            </div>                                
         </div>
     </nav>
     
