@@ -73,6 +73,18 @@
             </select>
         </div>
 
+        <!-- Filtro de Etiquetas (NUEVO) -->
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Etiqueta</label>
+            <select name="tag" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="" {% if not tag %}selected{% endif %}>Todas</option>
+                <option value="Dibujos animados" {% if tag == 'Dibujos animados' %}selected{% endif %}>🎨 Dibujos animados</option>
+                <option value="Saga" {% if tag == 'Saga' %}selected{% endif %}>🔗 Saga</option>
+                <option value="MARVEL" {% if tag == 'MARVEL' %}selected{% endif %}>🛡️ MARVEL</option>
+                <option value="DC COMICS" {% if tag == 'DC COMICS' %}selected{% endif %}>🦇 DC COMICS</option>
+            </select>
+        </div>
+        
         <!-- Ordenamiento -->
         <div class="min-w-0">
             <label class="block text-xs text-gray-400 mb-1">Ordenar por</label>
