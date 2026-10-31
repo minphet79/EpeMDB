@@ -127,11 +127,11 @@ async def api_search_live(q: str = ""):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, q: str = "", sort: str = "", continent: str = "", country: str = "", director: str = "", tag: str = "", page: int = 1, per_page: int = 24):
-    # REGLA ESTRICTA: Si hay algún filtro activo, ordenar de más antiguo a más reciente
-    if continent or country or director or tag:
+    # REGLA ESTRICTA: Si hay búsqueda o algún filtro activo, ordenar de más antiguo a más reciente
+    if q or continent or country or director or tag:
         sort = "year_asc"
     elif not sort:
-        sort = "name" # Orden por defecto si no hay filtros
+        sort = "name" # Orden por defecto si no hay filtros ni búsqueda
         
     offset = (page - 1) * per_page
     movies = db.list_movies(q, sort, continent, country, director, tag, offset=offset, limit=per_page)
