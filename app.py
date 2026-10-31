@@ -1,10 +1,10 @@
 import json
 import os
 import re
+import unicodedata
 import csv
 import io
 import difflib
-import unicodedata
 from urllib.parse import quote, unquote
 from fastapi import FastAPI, Request, Form, Cookie, Depends, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -50,6 +50,20 @@ def _split_directors(dir_field):
             new_directors.extend([p.strip() for p in parts if p.strip()])
         directors = new_directors
     return directors
+
+def _find_actor_id_by_name(actor_name):
+    if not actor_name: return None, None
+    name_norm = normalize_search(actor_name)
+    try:
+        for m in db.list_movies(limit=10000):
+            cast_list = json.loads(m["cast"]) if m["cast"] else []
+            for c in cast_list:
+                if isinstance(c, dict) and c.get("name"):
+                    if normalize_search(c["name"]) == name_norm:
+                        return c.get("id"), c.get("profile_path")
+    except Exception:
+        pass
+    return None, None
 
 # === RUTAS PÚBLICAS Y DE BÚSQUEDA ===
 @app.get("/api/search-live")
@@ -380,23 +394,6 @@ async def edit_serie_page(request: Request, series_id: int, admin: bool = Depend
     cast_list = [c.get("name", "") if isinstance(c, dict) else c for c in (json.loads(s.get("cast") or "[]") or [])]
     return templates.TemplateResponse("edit_serie.html", {"request": request, "serie": s, "cast_text": "\n".join(cast_list), "categories": db.get_series_categories()})
 
-# Función auxiliar: busca el ID de un actor por su nombre en la BD de películas
-def _find_actor_id_by_name(actor_name):
-    if not actor_name:
-        return None, None
-    name_norm = normalize_search(actor_name)
-    try:
-        for m in db.list_movies(limit=10000):
-            cast_list = json.loads(m["cast"]) if m["cast"] else []
-            for c in cast_list:
-                if isinstance(c, dict) and c.get("name"):
-                    if normalize_search(c["name"]) == name_norm:
-                        return c.get("id"), c.get("profile_path")
-    except Exception:
-        pass
-    return None, None
-
-
 @app.post("/save-serie/{series_id}")
 async def save_serie(
     series_id: int, name: str = Form(""), name_original: str = Form(""), 
@@ -406,8 +403,6 @@ async def save_serie(
     episodes: str = Form(""), admin: bool = Depends(check_admin)
 ):
     tmdb_id_int = int(tmdb_id) if tmdb_id and tmdb_id.isdigit() else None
-
-    # Cargar serie actual para conservar datos de actores ya existentes
     current_serie = db.get_series(series_id) or {}
     current_cast_raw = current_serie.get("cast") or "[]"
     try:
@@ -421,16 +416,7 @@ async def save_serie(
             tmdb_data = await tmdb.get_series_details(tmdb_id_int)
             if tmdb_data:
                 if tmdb_data.get("cast"):
-                    tmdb_cast_list = [
-                        {
-                            "name": c.get("name", ""),
-                            "id": c.get("id"),
-                            "profile_path": c.get("profile_path"),
-                            "character": c.get("character", "")
-                        }
-                        for c in tmdb_data["cast"][:15]
-                        if c.get("name")
-                    ]
+                    tmdb_cast_list = [{"name": c.get("name", ""), "id": c.get("id"), "profile_path": c.get("profile_path"), "character": c.get("character", "")} for c in tmdb_data["cast"][:15] if c.get("name")]
                 synopsis = synopsis or tmdb_data.get("synopsis") or ""
                 poster_url = poster_url or tmdb_data.get("poster_url") or ""
                 creator = creator or tmdb_data.get("creator") or ""
@@ -438,9 +424,7 @@ async def save_serie(
             pass
 
     cast_list = []
-
     if cast_text.strip():
-        # Construir diccionario de actores conocidos (serie actual + TMDB)
         known_cast = {}
         for c in current_cast + tmdb_cast_list:
             if isinstance(c, dict) and c.get("name"):
@@ -448,28 +432,16 @@ async def save_serie(
 
         for line in cast_text.strip().split("\n"):
             actor_name = line.strip()
-            if not actor_name:
-                continue
-
+            if not actor_name: continue
             old = known_cast.get(normalize_search(actor_name), {})
             actor_id = old.get("id")
             profile_path = old.get("profile_path")
             character = old.get("character", "")
-
-            # Si el actor no tiene ID, buscarlo en la BD de películas
             if not actor_id:
                 found_id, found_photo = _find_actor_id_by_name(actor_name)
-                if found_id:
-                    actor_id = found_id
-                if found_photo and not profile_path:
-                    profile_path = found_photo
-
-            cast_list.append({
-                "name": actor_name,
-                "id": actor_id,
-                "profile_path": profile_path,
-                "character": character
-            })
+                if found_id: actor_id = found_id
+                if found_photo and not profile_path: profile_path = found_photo
+            cast_list.append({"name": actor_name, "id": actor_id, "profile_path": profile_path, "character": character})
     else:
         cast_list = tmdb_cast_list or current_cast
 
@@ -483,22 +455,16 @@ async def save_serie(
                     "cast" = %(cast)s, seasons = %(seasons)s, episodes = %(episodes)s 
                 WHERE id = %(series_id)s
             """, {
-                "tmdb_id": tmdb_id_int,
-                "name": name.strip() or None,
-                "name_original": name_original.strip() or None,
-                "first_air_date": first_air_date.strip() or None,
-                "country": country.strip() or None,
-                "category": category.strip() or None,
-                "creator": creator.strip() or None,
-                "synopsis": synopsis.strip() or None,
-                "poster_url": poster_url.strip() or None,
+                "tmdb_id": tmdb_id_int, "name": name.strip() or None, "name_original": name_original.strip() or None,
+                "first_air_date": first_air_date.strip() or None, "country": country.strip() or None,
+                "category": category.strip() or None, "creator": creator.strip() or None,
+                "synopsis": synopsis.strip() or None, "poster_url": poster_url.strip() or None,
                 "cast": json.dumps(cast_list, ensure_ascii=False),
                 "seasons": int(seasons) if seasons.isdigit() else 0,
                 "episodes": int(episodes) if episodes.isdigit() else 0,
                 "series_id": series_id
             })
         conn.commit()
-
     return RedirectResponse(f"/serie/{series_id}", status_code=303)
 
 @app.get("/reidentify-serie/{series_id}", response_class=HTMLResponse)
@@ -560,25 +526,17 @@ async def comparar_excel_form(request: Request, admin: bool = Depends(check_admi
     return templates.TemplateResponse("comparar_excel.html", {"request": request, "resultados": None})
 
 @app.post("/comparar-excel", response_class=HTMLResponse)
-async def comparar_excel_submit(
-    request: Request, 
-    archivo: UploadFile = Form(...), 
-    admin: bool = Depends(check_admin)
-):
-    # 1. Leer el archivo CSV
+async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...), admin: bool = Depends(check_admin)):
     contents = await archivo.read()
     try:
-        text = contents.decode('utf-8-sig') # utf-8-sig maneja el BOM de Excel
+        text = contents.decode('utf-8-sig')
     except UnicodeDecodeError:
-        text = contents.decode('latin-1') # Fallback por si acaso
+        text = contents.decode('latin-1')
     
     csv_file = io.StringIO(text)
     reader = csv.DictReader(csv_file)
-    
-    # 2. Obtener todas las películas de la BD
     db_movies = db.list_movies(limit=10000)
     
-    # Crear un diccionario de búsqueda rápida por título original normalizado
     db_origins = {}
     for m in db_movies:
         orig = m.get('title_original', '')
@@ -588,24 +546,17 @@ async def comparar_excel_submit(
     db_origins_keys = list(db_origins.keys())
     resultados = []
     
-    # 3. Comparar fila por fila
     for row in reader:
-        # Intentar encontrar las columnas con nombres flexibles
         excel_orig = row.get('Título Original', row.get('titulo_original', row.get('Original', ''))).strip()
         excel_title = row.get('Título', row.get('titulo', row.get('Nombre', ''))).strip()
-        
-        if not excel_orig:
-            continue
+        if not excel_orig: continue
             
         norm_excel = normalize_search(excel_orig)
-        
-        # Búsqueda exacta
         if norm_excel in db_origins:
             status = "✅ Encontrada"
             match_title = db_origins[norm_excel].get('title_es', '')
             match_orig = db_origins[norm_excel].get('title_original', '')
         else:
-            # Búsqueda difusa (fuzzy matching) con umbral de 80% de similitud
             matches = difflib.get_close_matches(norm_excel, db_origins_keys, n=1, cutoff=0.80)
             if matches:
                 status = "⚠️ Posible coincidencia"
@@ -618,20 +569,15 @@ async def comparar_excel_submit(
                 match_orig = "-"
                 
         resultados.append({
-            "excel_title": excel_title,
-            "excel_orig": excel_orig,
-            "status": status,
-            "db_title": match_title,
-            "db_orig": match_orig
+            "excel_title": excel_title, "excel_orig": excel_orig, "status": status,
+            "db_title": match_title, "db_orig": match_orig
         })
         
-    # Ordenar: primero las faltantes, luego las posibles coincidencias, luego las encontradas
     orden = {"❌ Faltante": 0, "⚠️ Posible coincidencia": 1, "✅ Encontrada": 2}
     resultados.sort(key=lambda x: orden.get(x["status"], 3))
     
     return templates.TemplateResponse("comparar_excel.html", {
-        "request": request, 
-        "resultados": resultados,
+        "request": request, "resultados": resultados,
         "total_faltantes": sum(1 for r in resultados if r["status"] == "❌ Faltante"),
         "total_posibles": sum(1 for r in resultados if r["status"] == "⚠️ Posible coincidencia")
     })
