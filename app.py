@@ -1,6 +1,9 @@
 import json
 import os
 import re
+import csv
+import io
+import difflib
 import unicodedata
 from urllib.parse import quote, unquote
 from fastapi import FastAPI, Request, Form, Cookie, Depends, HTTPException
@@ -550,3 +553,85 @@ async def delete_serie(series_id: int, admin: bool = Depends(check_admin)):
 async def update_serie_poster(request: Request, series_id: int, poster_url: str = Form(...), admin: bool = Depends(check_admin)):
     db.update_series_poster(series_id, poster_url)
     return RedirectResponse(f"/serie/{series_id}", status_code=303)
+
+# === RUTA DE COMPARACIÓN CON EXCEL/CSV ===
+@app.get("/comparar-excel", response_class=HTMLResponse)
+async def comparar_excel_form(request: Request, admin: bool = Depends(check_admin)):
+    return templates.TemplateResponse("comparar_excel.html", {"request": request, "resultados": None})
+
+@app.post("/comparar-excel", response_class=HTMLResponse)
+async def comparar_excel_submit(
+    request: Request, 
+    archivo: UploadFile = Form(...), 
+    admin: bool = Depends(check_admin)
+):
+    # 1. Leer el archivo CSV
+    contents = await archivo.read()
+    try:
+        text = contents.decode('utf-8-sig') # utf-8-sig maneja el BOM de Excel
+    except UnicodeDecodeError:
+        text = contents.decode('latin-1') # Fallback por si acaso
+    
+    csv_file = io.StringIO(text)
+    reader = csv.DictReader(csv_file)
+    
+    # 2. Obtener todas las películas de la BD
+    db_movies = db.list_movies(limit=10000)
+    
+    # Crear un diccionario de búsqueda rápida por título original normalizado
+    db_origins = {}
+    for m in db_movies:
+        orig = m.get('title_original', '')
+        if orig:
+            db_origins[normalize_search(orig)] = m
+            
+    db_origins_keys = list(db_origins.keys())
+    resultados = []
+    
+    # 3. Comparar fila por fila
+    for row in reader:
+        # Intentar encontrar las columnas con nombres flexibles
+        excel_orig = row.get('Título Original', row.get('titulo_original', row.get('Original', ''))).strip()
+        excel_title = row.get('Título', row.get('titulo', row.get('Nombre', ''))).strip()
+        
+        if not excel_orig:
+            continue
+            
+        norm_excel = normalize_search(excel_orig)
+        
+        # Búsqueda exacta
+        if norm_excel in db_origins:
+            status = "✅ Encontrada"
+            match_title = db_origins[norm_excel].get('title_es', '')
+            match_orig = db_origins[norm_excel].get('title_original', '')
+        else:
+            # Búsqueda difusa (fuzzy matching) con umbral de 80% de similitud
+            matches = difflib.get_close_matches(norm_excel, db_origins_keys, n=1, cutoff=0.80)
+            if matches:
+                status = "⚠️ Posible coincidencia"
+                matched_movie = db_origins[matches[0]]
+                match_title = matched_movie.get('title_es', '')
+                match_orig = matched_movie.get('title_original', '')
+            else:
+                status = "❌ Faltante"
+                match_title = "-"
+                match_orig = "-"
+                
+        resultados.append({
+            "excel_title": excel_title,
+            "excel_orig": excel_orig,
+            "status": status,
+            "db_title": match_title,
+            "db_orig": match_orig
+        })
+        
+    # Ordenar: primero las faltantes, luego las posibles coincidencias, luego las encontradas
+    orden = {"❌ Faltante": 0, "⚠️ Posible coincidencia": 1, "✅ Encontrada": 2}
+    resultados.sort(key=lambda x: orden.get(x["status"], 3))
+    
+    return templates.TemplateResponse("comparar_excel.html", {
+        "request": request, 
+        "resultados": resultados,
+        "total_faltantes": sum(1 for r in resultados if r["status"] == "❌ Faltante"),
+        "total_posibles": sum(1 for r in resultados if r["status"] == "⚠️ Posible coincidencia")
+    })
