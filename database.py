@@ -142,6 +142,8 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                     query += " ORDER BY LOWER(title_es) ASC"
                 elif sort == "title_original":
                     query += " ORDER BY LOWER(title_original) ASC"
+                elif sort == "name":
+                    query += " ORDER BY LOWER(COALESCE(title_original, title_es)) ASC"
                 else:
                     query += " ORDER BY id DESC"
 
