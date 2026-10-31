@@ -19,6 +19,10 @@
 
     <!-- Resultados -->
     {% if resultados is not none %}
+        <div class="bg-blue-900/30 border border-blue-700 p-4 rounded mb-4 text-sm">
+            <p class="text-blue-300">📊 Filas procesadas del archivo: <strong>{{ total_rows }}</strong></p>
+            <p class="text-blue-300 text-xs mt-1">Si es 0, revisa que tu CSV tenga las columnas correctas (Título, Título Original)</p>
+        </div>    
         <div class="mb-4 flex gap-4 text-sm">
             <span class="text-red-400 font-bold">❌ Faltantes: {{ total_faltantes }}</span>
             <span class="text-yellow-400 font-bold">⚠️ Posibles coincidencias: {{ total_posibles }}</span>
