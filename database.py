@@ -44,13 +44,13 @@ def migrate_sqlite_to_postgres():
             for row in rows:
                 try:
                     cur.execute("""
-                        INSERT INTO movies (tmdb_id, title_es, title_original, year, country, continent, director, "cast", synopsis, poster_url)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO movies (tmdb_id, title_es, title_original, year, country, continent, director, "cast", synopsis, poster_url, tags)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (tmdb_id) DO NOTHING
                     """, (
                         row['tmdb_id'], row['title_es'], row['title_original'], row['year'],
                         row['country'], row['continent'], row['director'], row['cast'],
-                        row['synopsis'], row['poster_url']
+                        row['synopsis'], row['poster_url'], '[]'
                     ))
                 except Exception as e:
                     print(f"Error migrando fila {row['id']}: {e}")
@@ -63,7 +63,11 @@ def init_db():
             cur.execute("""CREATE TABLE IF NOT EXISTS movies (
                 id SERIAL PRIMARY KEY, tmdb_id INTEGER UNIQUE, title_es TEXT,
                 title_original TEXT, year INTEGER, country TEXT, continent TEXT, director TEXT,
-                "cast" TEXT DEFAULT '[]', synopsis TEXT, poster_url TEXT)""")
+                "cast" TEXT DEFAULT '[]', synopsis TEXT, poster_url TEXT, tags TEXT DEFAULT '[]')""")
+            
+            # Añadir columna tags si la tabla ya existe pero no tiene la columna
+            cur.execute("ALTER TABLE movies ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT '[]'")
+            
             cur.execute("""CREATE TABLE IF NOT EXISTS failed_movies (
                 id SERIAL PRIMARY KEY, title TEXT, year TEXT, error TEXT,
                 summary TEXT, directors TEXT, countries TEXT, genres TEXT,
@@ -239,17 +243,27 @@ def insert_movie(m):
     if not m.get("continent") and m.get("country"):
         auto_continent = get_continent_by_country(m["country"])
         if auto_continent: m["continent"] = auto_continent
+    
+    # Asegurar que tags tenga un valor por defecto
+    if "tags" not in m:
+        m["tags"] = "[]"
+    
     with db() as conn:
         with conn.cursor() as cur:
-            cur.execute('SELECT "cast" FROM movies WHERE tmdb_id = %s', (m.get("tmdb_id"),))
+            cur.execute('SELECT "cast", tags FROM movies WHERE tmdb_id = %s', (m.get("tmdb_id"),))
             existing = cur.fetchone()
-            if existing: m["cast"] = merge_cast(json.loads(existing["cast"]) if existing["cast"] else [], m.get("cast") or [])
+            if existing:
+                m["cast"] = merge_cast(json.loads(existing["cast"]) if existing["cast"] else [], m.get("cast") or [])
+                # Mantener los tags existentes si no se proporcionan nuevos
+                if not m.get("tags") or m["tags"] == "[]":
+                    m["tags"] = existing["tags"] if existing["tags"] else "[]"
             
-            cur.execute("""INSERT INTO movies (tmdb_id, title_es, title_original, year, country, continent, director, "cast", synopsis, poster_url)
-                VALUES (%(tmdb_id)s, %(title_es)s, %(title_original)s, %(year)s, %(country)s, %(continent)s, %(director)s, %(cast)s, %(synopsis)s, %(poster_url)s)
+            cur.execute("""INSERT INTO movies (tmdb_id, title_es, title_original, year, country, continent, director, "cast", synopsis, poster_url, tags)
+                VALUES (%(tmdb_id)s, %(title_es)s, %(title_original)s, %(year)s, %(country)s, %(continent)s, %(director)s, %(cast)s, %(synopsis)s, %(poster_url)s, %(tags)s)
                 ON CONFLICT(tmdb_id) DO UPDATE SET title_es=EXCLUDED.title_es, year=EXCLUDED.year, director=EXCLUDED.director,
                 "cast"=EXCLUDED."cast", synopsis=EXCLUDED.synopsis, country=EXCLUDED.country, continent=EXCLUDED.continent,
-                poster_url = CASE WHEN EXCLUDED.poster_url IS NOT NULL AND EXCLUDED.poster_url != '' THEN EXCLUDED.poster_url ELSE movies.poster_url END
+                poster_url = CASE WHEN EXCLUDED.poster_url IS NOT NULL AND EXCLUDED.poster_url != '' THEN EXCLUDED.poster_url ELSE movies.poster_url END,
+                tags = CASE WHEN EXCLUDED.tags IS NOT NULL AND EXCLUDED.tags != '[]' THEN EXCLUDED.tags ELSE movies.tags END
                 RETURNING id""",
                 {**m, "cast": json.dumps(m.get("cast") or [])})
             return cur.fetchone()['id']
