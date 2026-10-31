@@ -297,7 +297,8 @@ async def save_movie(
     movie_id: int, title_es: str = Form(""), title_original: str = Form(""), 
     year: str = Form(""), country: str = Form(""), continent: str = Form(""), 
     director: str = Form(""), synopsis: str = Form(""), cast_text: str = Form(""), 
-    poster_url: str = Form(""), tmdb_id: str = Form(""), admin: bool = Depends(check_admin)
+    poster_url: str = Form(""), tmdb_id: str = Form(""), 
+    tags: list[str] = Form(default=[]), admin: bool = Depends(check_admin)
 ):
     tmdb_id_int = int(tmdb_id) if tmdb_id and tmdb_id.isdigit() else None
     cast_list = []
@@ -314,19 +315,24 @@ async def save_movie(
     if country:
         auto_continent = db.get_continent_by_country(country)
         if auto_continent: continent = auto_continent
+    
+    # Convertir lista de tags a JSON
+    tags_json = json.dumps(tags, ensure_ascii=False)
+    
     with db.db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE movies SET 
                     tmdb_id = %s, title_es = %s, title_original = %s, year = %s, 
                     country = %s, continent = %s, director = %s, synopsis = %s, 
-                    poster_url = %s, "cast" = %s 
+                    poster_url = %s, "cast" = %s, tags = %s
                 WHERE id = %s
             """, (
                 tmdb_id_int, title_es.strip() or None, title_original.strip() or None, 
                 int(year) if year.isdigit() else None, country.strip() or None, 
                 continent.strip() or None, director.strip() or None, synopsis.strip() or None, 
-                poster_url.strip() or None, json.dumps(cast_list, ensure_ascii=False), movie_id
+                poster_url.strip() or None, json.dumps(cast_list, ensure_ascii=False), 
+                tags_json, movie_id
             ))
         conn.commit()
     return RedirectResponse(f"/movie/{movie_id}", status_code=303)
