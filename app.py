@@ -535,6 +535,11 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
     
     csv_file = io.StringIO(text)
     reader = csv.DictReader(csv_file)
+    
+    # Debug: ver qué columnas tiene el archivo
+    if reader.fieldnames:
+        print(f"📊 COLUMNAS DETECTADAS: {reader.fieldnames}")
+    
     db_movies = db.list_movies(limit=10000)
     
     db_origins = {}
@@ -545,11 +550,41 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
             
     db_origins_keys = list(db_origins.keys())
     resultados = []
+    total_rows = 0
+    
+    # Nombres posibles para columnas
+    possible_orig_cols = ['Título Original', 'titulo_original', 'Original', 'original', 'Title Original', 'title_original', 'Titulo Original']
+    possible_title_cols = ['Título', 'titulo', 'Titulo', 'Title', 'title', 'Nombre', 'nombre', 'Name', 'name']
+    
+    # Encontrar las columnas correctas
+    orig_col = None
+    title_col = None
+    
+    if reader.fieldnames:
+        for col in reader.fieldnames:
+            col_lower = col.lower().strip()
+            for possible in possible_orig_cols:
+                if possible.lower() in col_lower or col_lower in possible.lower():
+                    orig_col = col
+                    break
+            for possible in possible_title_cols:
+                if possible.lower() in col_lower or col_lower in possible.lower():
+                    title_col = col
+                    break
+    
+    print(f"✅ Columna título original usada: {orig_col}")
+    print(f"✅ Columna título usada: {title_col}")
     
     for row in reader:
-        excel_orig = row.get('Título Original', row.get('titulo_original', row.get('Original', ''))).strip()
-        excel_title = row.get('Título', row.get('titulo', row.get('Nombre', ''))).strip()
-        if not excel_orig: continue
+        total_rows += 1
+        if not orig_col or not title_col:
+            continue
+            
+        excel_orig = row.get(orig_col, '').strip()
+        excel_title = row.get(title_col, '').strip()
+        
+        if not excel_orig: 
+            continue
             
         norm_excel = normalize_search(excel_orig)
         if norm_excel in db_origins:
@@ -559,7 +594,7 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
         else:
             matches = difflib.get_close_matches(norm_excel, db_origins_keys, n=1, cutoff=0.80)
             if matches:
-                status = "⚠️ Posible coincidencia"
+                status = "️ Posible coincidencia"
                 matched_movie = db_origins[matches[0]]
                 match_title = matched_movie.get('title_es', '')
                 match_orig = matched_movie.get('title_original', '')
@@ -576,8 +611,13 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
     orden = {"❌ Faltante": 0, "⚠️ Posible coincidencia": 1, "✅ Encontrada": 2}
     resultados.sort(key=lambda x: orden.get(x["status"], 3))
     
+    print(f"📊 Total filas procesadas: {total_rows}")
+    print(f"📊 Resultados encontrados: {len(resultados)}")
+    
     return templates.TemplateResponse("comparar_excel.html", {
         "request": request, "resultados": resultados,
         "total_faltantes": sum(1 for r in resultados if r["status"] == "❌ Faltante"),
-        "total_posibles": sum(1 for r in resultados if r["status"] == "⚠️ Posible coincidencia")
+        "total_posibles": sum(1 for r in resultados if r["status"] == "️ Posible coincidencia"),
+        "total_rows": total_rows
+    })
     })
