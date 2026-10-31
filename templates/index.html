@@ -1,79 +1,73 @@
 {% extends "base.html" %}
 {% block content %}
 
-<!-- Encabezado y Contadores -->
-<div class="flex flex-wrap items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
-    <div>
-        <h1 class="text-xl sm:text-2xl font-bold text-white">Catálogo de Películas</h1>
-        <p class="text-xs sm:text-sm text-gray-400">{{ total_movies }} película{{ 's' if movies|length != 1 else '' }} en tu colección</p>
+<div class="max-w-7xl mx-auto">
+    <!-- Título y Buscador -->
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <h1 class="text-2xl font-bold text-white">
+            🎬 Catálogo de Películas 
+            <span class="text-sm font-normal text-gray-400">({{ total_movies }} en total)</span>
+        </h1>
+        
+        <!-- Buscador Rápido -->
+        <form action="/" method="get" class="flex w-full md:w-auto gap-2">
+            <input type="text" name="q" value="{{ q }}" placeholder="Buscar película, director..." 
+                   class="flex-grow md:w-64 bg-gray-800 text-white px-4 py-2 rounded border border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-medium transition">
+                🔍
+            </button>
+        </form>
     </div>
-    
-    <!-- Indicadores de estado -->
-    <div class="flex gap-2 sm:gap-3 text-xs">
-        {% if no_poster_count > 0 %}
-        <a href="/no-poster" class="bg-gray-700 hover:bg-gray-600 px-2 sm:px-3 py-1 sm:py-1.5 rounded text-gray-300 transition">
-            🖼️ {{ no_poster_count }} sin póster
-        </a>
-        {% endif %}
-        {% if pending_count > 0 %}
-        <a href="/failed" class="bg-gray-700 hover:bg-gray-600 px-2 sm:px-3 py-1 sm:py-1.5 rounded text-gray-300 transition">
-            ⚠️ {{ pending_count }} pendientes
-        </a>
-        {% endif %}
-    </div>
-</div>
 
-<!-- Barra de Filtros Unificada (Responsive) -->
-<form method="GET" action="/" class="flex flex-wrap gap-2 sm:gap-3 mb-6 sm:mb-8 p-3 sm:p-4 bg-gray-800 rounded-lg border border-gray-700">
-    
-    <!-- Búsqueda en tiempo real (ocupa todo el ancho en móvil) -->
-    <div class="w-full relative">
-        <label class="block text-xs text-gray-400 mb-1">Buscar</label>
-        <input type="search" id="search-input" name="q" value="{{ q }}" placeholder="Título, director, actor..." 
-               autocomplete="off"
-               class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-500">
+    <!-- Barra de Filtros -->
+    <form action="/" method="get" class="bg-gray-800 p-4 rounded-xl border border-gray-700 mb-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         
-        <!-- Dropdown de sugerencias -->
-        <div id="search-dropdown" class="hidden absolute z-50 w-full mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl max-h-80 overflow-y-auto"></div>
-    </div>
-    
-    <!-- Filtros en grid de 2 columnas en móvil, auto en desktop -->
-    <div class="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 w-full sm:w-auto flex-1">
-        
+        <!-- Ordenar por -->
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Ordenar por</label>
+            <select name="sort" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="name" {% if sort == 'name' %}selected{% endif %}>🔤 Nombre (A-Z)</option>
+                <option value="year_desc" {% if sort == 'year_desc' %}selected{% endif %}>📅 Año (más recientes)</option>
+                <option value="year_asc" {% if sort == 'year_asc' %}selected{% endif %}>📅 Año (más antiguas)</option>
+                <option value="title_es" {% if sort == 'title_es' %}selected{% endif %}>🇪🇸 Título Español</option>
+                <option value="title_original" {% if sort == 'title_original' %}selected{% endif %}>🌍 Título Original</option>
+            </select>
+        </div>
+
         <!-- Continente -->
-        <div class="min-w-0">
+        <div>
             <label class="block text-xs text-gray-400 mb-1">Continente</label>
-            <select name="continent" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-2 sm:px-3 py-2 rounded text-xs sm:text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+            <select name="continent" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Todos</option>
                 {% for c in continents %}
-                <option value="{{ c }}" {% if continent == c %}selected{% endif %}>{{ c }}</option>
+                    <option value="{{ c }}" {% if continent == c %}selected{% endif %}>{{ c }}</option>
                 {% endfor %}
             </select>
         </div>
 
         <!-- País -->
-        <div class="min-w-0">
+        <div>
             <label class="block text-xs text-gray-400 mb-1">País</label>
-            <select name="country" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-2 sm:px-3 py-2 rounded text-xs sm:text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+            <select name="country" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Todos</option>
                 {% for c in countries %}
-                <option value="{{ c }}" {% if country == c %}selected{% endif %}>{{ c }}</option>
+                    <option value="{{ c }}" {% if country == c %}selected{% endif %}>{{ c }}</option>
                 {% endfor %}
             </select>
         </div>
 
         <!-- Director -->
-        <div class="min-w-0">
+        <div>
             <label class="block text-xs text-gray-400 mb-1">Director</label>
-            <select name="director" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-2 sm:px-3 py-2 rounded text-xs sm:text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+            <select name="director" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="">Todos</option>
                 {% for d in directors %}
-                <option value="{{ d }}" {% if director == d %}selected{% endif %}>{{ d }}</option>
+                    <option value="{{ d }}" {% if director == d %}selected{% endif %}>{{ d }}</option>
                 {% endfor %}
             </select>
         </div>
 
-        <!-- Filtro de Etiquetas (NUEVO) -->
+        <!-- Etiqueta (NUEVO) -->
         <div>
             <label class="block text-xs text-gray-400 mb-1">Etiqueta</label>
             <select name="tag" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -84,159 +78,84 @@
                 <option value="DC COMICS" {% if tag == 'DC COMICS' %}selected{% endif %}>🦇 DC COMICS</option>
             </select>
         </div>
-        
-        <!-- Ordenamiento -->
-        <div class="min-w-0">
-            <label class="block text-xs text-gray-400 mb-1">Ordenar por</label>
-            <select name="sort" onchange="this.form.submit()" class="bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-    <option value="added_desc" {% if sort == 'added_desc' %}selected{% endif %}>🕒 Añadidas (recientes primero)</option>
-    <option value="year_desc" {% if sort == 'year_desc' %}selected{% endif %}>📅 Año (más recientes)</option>
-    <option value="year_asc" {% if sort == 'year_asc' %}selected{% endif %}>📅 Año (más antiguas)</option>
-    <option value="name" {% if sort == 'name' or not sort %}selected{% endif %}>🔤 Nombre (A-Z)</option>
-</select>
+
+        <!-- Películas por página -->
+        <div>
+            <label class="block text-xs text-gray-400 mb-1">Mostrar</label>
+            <select name="per_page" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="12">12</option>
+                <option value="24" {% if per_page == 24 %}selected{% endif %}>24</option>
+                <option value="48">48</option>
+                <option value="96">96</option>
+            </select>
         </div>
-        
-        <!-- Botón Limpiar -->
-        <div class="min-w-0 flex items-end">
-            <a href="/" class="inline-block w-full text-center bg-gray-600 hover:bg-gray-500 text-white px-3 sm:px-4 py-2 rounded text-xs sm:text-sm transition">
-                ✕ Limpiar
+    </form>
+
+    <!-- Cuadrícula de Películas -->
+    {% if movies %}
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {% for m in movies %}
+            <a href="/movie/{{ m.id }}" class="group block bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-blue-500 transition shadow-lg hover:shadow-blue-500/20">
+                <div class="relative aspect-[2/3] overflow-hidden bg-gray-900">
+                    {% if m.poster_url %}
+                        <img src="{{ m.poster_url }}" alt="{{ m.title_es }}" 
+                             class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                             onerror="this.src='/static/no-poster.png'; this.onerror=null;">
+                    {% else %}
+                        <div class="w-full h-full flex items-center justify-center text-gray-600 text-4xl">🎬</div>
+                    {% endif %}
+                    
+                    <!-- Badges de Etiquetas -->
+                    {% if m.tags %}
+                        <div class="absolute top-2 left-2 flex flex-wrap gap-1">
+                            {% set tags_list = m.tags | fromjson if m.tags is string else m.tags %}
+                            {% for t in tags_list %}
+                                <span class="bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded font-bold backdrop-blur-sm">
+                                    {% if t == 'MARVEL' %}🛡️
+                                    {% elif t == 'DC COMICS' %}🦇
+                                    {% elif t == 'Dibujos animados' %}🎨
+                                    {% elif t == 'Saga' %}🔗
+                                    {% endif %}
+                                    {{ t }}
+                                </span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="p-3">
+                    <h3 class="text-sm font-semibold text-white truncate group-hover:text-blue-400 transition">{{ m.title_es }}</h3>
+                    <p class="text-xs text-gray-400 mt-1">
+                        {% if m.year %}📅 {{ m.year }}{% endif %}
+                        {% if m.director %} · {{ m.director }}{% endif %}
+                    </p>
+                </div>
             </a>
+            {% endfor %}
         </div>
-    </div>
-</form>
 
-<!-- Rejilla de Películas (Responsive: 2 cols móvil, 3 tablet, 4-6 desktop) -->
-{% if movies %}
-<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
-    {% for m in movies %}
-    <a href="/movie/{{ m.id }}" class="group block">
-        <div class="relative overflow-hidden rounded-lg shadow-lg bg-gray-800">
-            {% if m.poster_url %}
-                <img src="{{ m.poster_url }}" alt="{{ m.title_es }}" class="w-full aspect-[2/3] object-cover group-hover:opacity-80 group-hover:scale-105 transition duration-300" loading="lazy">
-            {% else %}
-                <div class="w-full aspect-[2/3] bg-gray-700 flex items-center justify-center text-xs text-gray-500">Sin póster</div>
+        <!-- Paginación -->
+        {% if total_pages > 1 %}
+        <div class="flex justify-center items-center gap-2 mt-10 mb-6">
+            {% if page > 1 %}
+                <a href="?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&continent={{ continent }}&country={{ country }}&director={{ director }}&tag={{ tag }}&q={{ q }}" 
+                   class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded transition">← Anterior</a>
+            {% endif %}
+            
+            <span class="text-gray-400 text-sm mx-4">Página {{ page }} de {{ total_pages }}</span>
+            
+            {% if page < total_pages %}
+                <a href="?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&continent={{ continent }}&country={{ country }}&director={{ director }}&tag={{ tag }}&q={{ q }}" 
+                   class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded transition">Siguiente →</a>
             {% endif %}
         </div>
-        <div class="mt-2">
-            <h3 class="text-xs sm:text-sm font-semibold text-white leading-tight truncate group-hover:text-blue-400 transition">{{ m.title_es }}</h3>
-            {% if m.title_original and m.title_original != m.title_es %}
-                <p class="text-[9px] sm:text-[10px] text-gray-500 italic truncate">{{ m.title_original }}</p>
-            {% endif %}
-            <p class="text-[10px] sm:text-xs text-gray-400 mt-1 flex items-center gap-1">
-                <span>{{ m.year or '?' }}</span>
-                {% if m.director %}
-                <span class="text-gray-600">·</span>
-                <span class="truncate">{{ m.director }}</span>
-                {% endif %}
-            </p>
-        </div>
-    </a>
-    {% endfor %}
-</div>
-{% else %}
-<!-- Estado vacío -->
-<div class="bg-gray-800 p-8 sm:p-12 rounded-lg border border-gray-700 text-center">
-    <p class="text-gray-400 text-base sm:text-lg mb-2">No se encontraron películas con estos filtros.</p>
-    <a href="/" class="inline-block mt-2 text-blue-400 hover:text-blue-300 font-medium text-sm sm:text-base">Ver todas las películas</a>
-</div>
-{% endif %}
-
-<!-- Script de búsqueda en tiempo real -->
-<script>
-(function() {
-    const input = document.getElementById('search-input');
-    const dropdown = document.getElementById('search-dropdown');
-    let debounceTimer = null;
-    
-    if (!input || !dropdown) return;
-    
-    function renderResults(results) {
-        if (!results || results.length === 0) {
-            dropdown.classList.add('hidden');
-            dropdown.innerHTML = '';
-            return;
-        }
-        
-        let html = '';
-        results.forEach(r => {
-            const icon = r.icon ? `<span class="mr-2">${r.icon}</span>` : '';
-            const typeLabel = r.type === 'película' ? '' : `<span class="text-[10px] bg-gray-700 px-1.5 py-0.5 rounded text-gray-400 ml-2">${r.type}</span>`;
-            html += `
-                <a href="${r.url}" class="block px-3 py-2 hover:bg-gray-700 transition border-b border-gray-700 last:border-b-0">
-                    <div class="flex items-center">
-                        ${icon}
-                        <span class="text-sm text-white flex-1 truncate">${r.label}</span>
-                        ${typeLabel}
-                    </div>
-                    ${r.sub ? `<div class="text-xs text-gray-500 mt-0.5 truncate">${r.sub}</div>` : ''}
-                </a>
-            `;
-        });
-        
-        dropdown.innerHTML = html;
-        dropdown.classList.remove('hidden');
-    }
-    
-    document.addEventListener('click', function(e) {
-        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
-            dropdown.classList.add('hidden');
-        }
-    });
-    
-    input.addEventListener('input', function() {
-        clearTimeout(debounceTimer);
-        const query = this.value.trim();
-        
-        if (query.length < 1) {
-            dropdown.classList.add('hidden');
-            dropdown.innerHTML = '';
-            return;
-        }
-        
-        debounceTimer = setTimeout(async () => {
-            try {
-                const response = await fetch(`/api/search-live?q=${encodeURIComponent(query)}`);
-                const results = await response.json();
-                renderResults(results);
-            } catch (err) {
-                console.error('Error en búsqueda:', err);
-            }
-        }, 300);
-    });
-    
-    input.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            dropdown.classList.add('hidden');
-        }
-    });
-})();
-</script>
-
-<!-- PAGINACIÓN -->
-{% if total_pages > 1 %}
-<div class="flex justify-center items-center gap-2 my-8 flex-wrap">
-    {% if page > 1 %}
-    <a href="/?page={{ page - 1 }}&per_page={{ per_page }}&sort={{ sort }}&continent={{ continent }}&country={{ country }}&director={{ director }}&q={{ q }}" 
-       class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">← Anterior</a>
-    {% endif %}
-    
-    {% for p in range(1, total_pages + 1) %}
-        {% if p == page %}
-        <span class="px-4 py-2 bg-blue-600 text-white rounded font-bold">{{ p }}</span>
-        {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
-        <a href="/?page={{ p }}&per_page={{ per_page }}&sort={{ sort }}&continent={{ continent }}&country={{ country }}&director={{ director }}&q={{ q }}" 
-           class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">{{ p }}</a>
-        {% elif p == page - 3 or p == page + 3 %}
-        <span class="px-2 py-2 text-gray-400">...</span>
         {% endif %}
-    {% endfor %}
-    
-    {% if page < total_pages %}
-    <a href="/?page={{ page + 1 }}&per_page={{ per_page }}&sort={{ sort }}&continent={{ continent }}&country={{ country }}&director={{ director }}&q={{ q }}" 
-       class="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded">Siguiente →</a>
+
+    {% else %}
+        <div class="text-center py-20 bg-gray-800 rounded-xl border border-gray-700">
+            <p class="text-gray-400 text-lg">No se encontraron películas con estos filtros.</p>
+            <a href="/" class="inline-block mt-4 text-blue-400 hover:text-blue-300 underline">Limpiar filtros</a>
+        </div>
     {% endif %}
 </div>
-<p class="text-center text-gray-400 text-sm mb-4">Página {{ page }} de {{ total_pages }} ({{ total_movies }} películas en total)</p>
-{% endif %}
 
 {% endblock %}
