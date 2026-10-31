@@ -401,13 +401,24 @@ async def review_uk_movies(request: Request, admin: bool = Depends(check_admin))
 async def show_english_synopsis(request: Request, admin: bool = Depends(check_admin)):
     from langdetect import detect, LangDetectException
     to_translate = []
-    for m in db.list_movies():
+    for m in db.list_movies(limit=10000):
         synopsis = m.get("synopsis") or ""
         if len(synopsis) >= 20:
             try:
-                if detect(synopsis) == 'en': to_translate.append({"id": m["id"], "title_es": m.get("title_es", ""), "year": m.get("year"), "synopsis_en": synopsis})
-            except LangDetectException: pass
-    return templates.TemplateResponse("show_english_synopsis.html", {"request": request, "to_translate": to_translate, "total": len(to_translate)})
+                if detect(synopsis) == 'en':
+                    to_translate.append({
+                        "id": m["id"],
+                        "title_es": m.get("title_es", ""),
+                        "year": m.get("year"),
+                        "synopsis_en": synopsis
+                    })
+            except LangDetectException:
+                pass
+    return templates.TemplateResponse("show_english_synopsis.html", {
+        "request": request,
+        "to_translate": to_translate,
+        "total": len(to_translate)
+    })
 
 @app.get("/apply-translations-form", response_class=HTMLResponse)
 async def apply_translations_form(request: Request):
@@ -415,19 +426,43 @@ async def apply_translations_form(request: Request):
 
 @app.post("/apply-translations", response_class=HTMLResponse)
 async def apply_translations(request: Request, translations_text: str = Form(...), admin: bool = Depends(check_admin)):
-    updated, current_id = 0, None
+    updated = 0
+    current_id = None
+    errors = []
+    
     for line in translations_text.strip().split('\n'):
         line = line.strip()
         if line.startswith('ID:'):
-            try: current_id = int(line.replace('ID:', '').strip())
-            except: current_id = None
+            try:
+                current_id = int(line.replace('ID:', '').strip())
+            except:
+                current_id = None
         elif line.startswith('Sinopsis ES:') and current_id:
             synopsis_es = line.replace('Sinopsis ES:', '').strip()
             if synopsis_es:
-                with db.db() as conn: conn.execute("UPDATE movies SET synopsis = ? WHERE id = ?", (synopsis_es, current_id))
-                updated += 1; current_id = None
-    return HTMLResponse(f'<div class="bg-green-900 border border-green-600 p-6 rounded text-center max-w-2xl mx-auto mt-10"><p class="text-green-300 font-semibold text-lg">✅ Traducciones aplicadas</p><p class="text-green-200 text-sm mt-2">{updated} sinopsis actualizadas.</p><a href="/" class="inline-block mt-4 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al Inicio</a></div>')
-
+                try:
+                    with db.db() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("UPDATE movies SET synopsis = %s WHERE id = %s", (synopsis_es, current_id))
+                        conn.commit()
+                    updated += 1
+                except Exception as e:
+                    errors.append(f"Error con ID {current_id}: {str(e)}")
+                current_id = None
+    
+    error_msg = ""
+    if errors:
+        error_msg = f'<p class="text-red-300 text-sm mt-2">Errores: {"; ".join(errors)}</p>'
+    
+    return HTMLResponse(f'''
+        <div class="bg-green-900 border border-green-600 p-6 rounded text-center max-w-2xl mx-auto mt-10">
+            <p class="text-green-300 font-semibold text-lg">✅ Traducciones aplicadas</p>
+            <p class="text-green-200 text-sm mt-2">{updated} sinopsis actualizadas.</p>
+            {error_msg}
+            <a href="/" class="inline-block mt-4 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded">Volver al Inicio</a>
+        </div>
+    ''')
+    
 # === RUTAS DE LOGIN Y LOGOUT ===
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, redirect_url: str = "/", error: str = ""):
