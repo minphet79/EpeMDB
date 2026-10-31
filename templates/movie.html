@@ -47,12 +47,18 @@
                 <a href="/edit-movie/{{ movie.id }}" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded text-sm font-medium transition">
                      Editar ficha completa
                 </a>
+                <a href="/reidentify-movie/{{ movie.id }}" class="bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded text-sm font-medium transition inline-flex items-center gap-2">
+                    🔄 Re-identificar (TMDB)
+                </a>
                 <form action="/delete/{{ movie.id }}" method="post" onsubmit="return confirm('¿Seguro que quieres eliminar esta película?');" class="inline">
                     <button type="submit" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-sm font-medium transition">
                          Eliminar
                     </button>
                 </form>
             </div>
+            <p class="text-gray-400 text-xs mt-2">
+                Re-identificar busca la versión correcta en TMDB y actualiza sinopsis, reparto y póster, manteniendo tus datos actuales (título, año, país, director).
+            </p>
         </div>
     </div>
 
