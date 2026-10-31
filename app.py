@@ -127,11 +127,12 @@ async def api_search_live(q: str = ""):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, q: str = "", sort: str = "", continent: str = "", country: str = "", director: str = "", tag: str = "", page: int = 1, per_page: int = 24):
-    # Si no se especifica un orden y hay algún filtro activo, ordenar por año (más recientes primero)
-    if not sort and (continent or country or director or tag):
-        sort = "year_desc"
-    elif not sort:
-        sort = "name"
+    # Lógica de ordenamiento inteligente
+    if sort == "auto" or sort == "":
+        if continent or country or director or tag:
+            sort = "year_desc" # Forzar año descendente si hay filtros activos
+        else:
+            sort = "name" # Por defecto, nombre (A-Z)
     
     offset = (page - 1) * per_page
     movies = db.list_movies(q, sort, continent, country, director, tag, offset=offset, limit=per_page)
@@ -155,7 +156,7 @@ async def index(request: Request, q: str = "", sort: str = "", continent: str = 
         "no_poster_count": len(db.get_movies_without_poster()), "pending_count": len(db.list_failed_movies()),
         "page": page, "total_pages": total_pages, "total_movies": total, "per_page": per_page
     })
-
+    
 @app.get("/add", response_class=HTMLResponse)
 async def add_form(request: Request):
     return templates.TemplateResponse("add.html", {"request": request})
