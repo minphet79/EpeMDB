@@ -109,7 +109,7 @@ async def api_search_live(q: str = ""):
     return JSONResponse(results[:15])
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request, q: str = "", sort: str = "added_desc", continent: str = "", country: str = "", director: str = "", page: int = 1, per_page: int = 20):
+async def index(request: Request, q: str = "", sort: str = "name", continent: str = "", country: str = "", director: str = "", page: int = 1, per_page: int = 20):
     offset = (page - 1) * per_page
     movies = db.list_movies(q, sort, continent, country, director, offset=offset, limit=per_page)
     total = db.count_movies(q, continent, country, director)
