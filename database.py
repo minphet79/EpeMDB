@@ -64,10 +64,7 @@ def init_db():
                 id SERIAL PRIMARY KEY, tmdb_id INTEGER UNIQUE, title_es TEXT,
                 title_original TEXT, year INTEGER, country TEXT, continent TEXT, director TEXT,
                 "cast" TEXT DEFAULT '[]', synopsis TEXT, poster_url TEXT, tags TEXT DEFAULT '[]')""")
-            
-            # Añadir columna tags si la tabla ya existe pero no tiene la columna
             cur.execute("ALTER TABLE movies ADD COLUMN IF NOT EXISTS tags TEXT DEFAULT '[]'")
-            
             cur.execute("""CREATE TABLE IF NOT EXISTS failed_movies (
                 id SERIAL PRIMARY KEY, title TEXT, year TEXT, error TEXT,
                 summary TEXT, directors TEXT, countries TEXT, genres TEXT,
@@ -120,7 +117,7 @@ def get_continent_by_country(country):
 
 def get_continents_list(): return CONTINENTES_VALIDOS
 
-def list_movies(q="", sort="added_desc", continent="", country="", director="", offset=0, limit=20):
+def list_movies(q="", sort="added_desc", continent="", country="", director="", tag="", offset=0, limit=20):
     with db() as conn:
         with conn.cursor() as cur:
             query = "SELECT * FROM movies WHERE 1=1"
@@ -128,6 +125,7 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
             if continent: query += " AND continent = %s"; params.append(continent)
             if country: query += " AND country = %s"; params.append(country)
             if director: query += " AND director = %s"; params.append(director)
+            if tag: query += " AND tags LIKE %s"; params.append(f'%"{tag}"%')
 
             if q:
                 cur.execute(query, params)
@@ -157,7 +155,7 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
 
     return movies
 
-def count_movies(q="", continent="", country="", director=""):
+def count_movies(q="", continent="", country="", director="", tag=""):
     with db() as conn:
         with conn.cursor() as cur:
             query = "SELECT * FROM movies WHERE 1=1"
@@ -165,6 +163,7 @@ def count_movies(q="", continent="", country="", director=""):
             if continent: query += " AND continent = %s"; params.append(continent)
             if country: query += " AND country = %s"; params.append(country)
             if director: query += " AND director = %s"; params.append(director)
+            if tag: query += " AND tags LIKE %s"; params.append(f'%"{tag}"%')
 
             if q:
                 cur.execute(query, params)
@@ -182,6 +181,7 @@ def count_movies(q="", continent="", country="", director=""):
                 if continent: count_query += " AND continent = %s"; count_params.append(continent)
                 if country: count_query += " AND country = %s"; count_params.append(country)
                 if director: count_query += " AND director = %s"; count_params.append(director)
+                if tag: count_query += " AND tags LIKE %s"; count_params.append(f'%"{tag}"%')
                 cur.execute(count_query, count_params)
                 return cur.fetchone()['count']
 
@@ -243,21 +243,16 @@ def insert_movie(m):
     if not m.get("continent") and m.get("country"):
         auto_continent = get_continent_by_country(m["country"])
         if auto_continent: m["continent"] = auto_continent
-    
-    # Asegurar que tags tenga un valor por defecto
     if "tags" not in m:
         m["tags"] = "[]"
-    
     with db() as conn:
         with conn.cursor() as cur:
             cur.execute('SELECT "cast", tags FROM movies WHERE tmdb_id = %s', (m.get("tmdb_id"),))
             existing = cur.fetchone()
             if existing:
                 m["cast"] = merge_cast(json.loads(existing["cast"]) if existing["cast"] else [], m.get("cast") or [])
-                # Mantener los tags existentes si no se proporcionan nuevos
                 if not m.get("tags") or m["tags"] == "[]":
                     m["tags"] = existing["tags"] if existing["tags"] else "[]"
-            
             cur.execute("""INSERT INTO movies (tmdb_id, title_es, title_original, year, country, continent, director, "cast", synopsis, poster_url, tags)
                 VALUES (%(tmdb_id)s, %(title_es)s, %(title_original)s, %(year)s, %(country)s, %(continent)s, %(director)s, %(cast)s, %(synopsis)s, %(poster_url)s, %(tags)s)
                 ON CONFLICT(tmdb_id) DO UPDATE SET title_es=EXCLUDED.title_es, year=EXCLUDED.year, director=EXCLUDED.director,
@@ -374,22 +369,14 @@ def list_series(q="", sort="added_desc", category="", country="", continent="", 
         with conn.cursor() as cur:
             query = "SELECT * FROM series WHERE 1=1"
             params = []
-            
-            if category: 
-                query += " AND category = %s"
-                params.append(category)
-                
+            if category: query += " AND category = %s"; params.append(category)
             if continent:
                 continent_countries = get_countries_by_continent(continent)
                 if continent_countries:
                     placeholders = ','.join(['%s'] * len(continent_countries))
                     query += f" AND country IN ({placeholders})"
                     params.extend(continent_countries)
-                    
-            if country: 
-                query += " AND country = %s"
-                params.append(country)
-
+            if country: query += " AND country = %s"; params.append(country)
             if q:
                 cur.execute(query, params)
                 series = [dict(r) for r in cur.fetchall()]
@@ -407,11 +394,9 @@ def list_series(q="", sort="added_desc", category="", country="", continent="", 
                     query += " ORDER BY LOWER(COALESCE(name_original, name)) ASC"
                 else:
                     query += " ORDER BY id DESC"
-                
                 query += f" LIMIT {limit} OFFSET {offset}"
                 cur.execute(query, params)
                 series = [dict(r) for r in cur.fetchall()]
-
     return series
     
 def count_series(q="", category="", country="", continent=""):
@@ -419,22 +404,14 @@ def count_series(q="", category="", country="", continent=""):
         with conn.cursor() as cur:
             query = "SELECT * FROM series WHERE 1=1"
             params = []
-            
-            if category: 
-                query += " AND category = %s"
-                params.append(category)
-                
+            if category: query += " AND category = %s"; params.append(category)
             if continent:
                 continent_countries = get_countries_by_continent(continent)
                 if continent_countries:
                     placeholders = ','.join(['%s'] * len(continent_countries))
                     query += f" AND country IN ({placeholders})"
                     params.extend(continent_countries)
-                    
-            if country: 
-                query += " AND country = %s"
-                params.append(country)
-
+            if country: query += " AND country = %s"; params.append(country)
             if q:
                 cur.execute(query, params)
                 rows = cur.fetchall()
@@ -448,19 +425,14 @@ def count_series(q="", category="", country="", continent=""):
             else:
                 count_query = "SELECT COUNT(*) FROM series WHERE 1=1"
                 count_params = []
-                if category: 
-                    count_query += " AND category = %s"
-                    count_params.append(category)
+                if category: count_query += " AND category = %s"; count_params.append(category)
                 if continent:
                     continent_countries = get_countries_by_continent(continent)
                     if continent_countries:
                         placeholders = ','.join(['%s'] * len(continent_countries))
                         count_query += f" AND country IN ({placeholders})"
                         count_params.extend(continent_countries)
-                if country: 
-                    count_query += " AND country = %s"
-                    count_params.append(country)
-                    
+                if country: count_query += " AND country = %s"; count_params.append(country)
                 cur.execute(count_query, count_params)
                 return cur.fetchone()['count']
 
@@ -486,8 +458,6 @@ def get_series_countries():
         with conn.cursor() as cur:
             cur.execute("SELECT DISTINCT country FROM series WHERE country IS NOT NULL AND country != '' ORDER BY country")
             raw_countries = [r['country'] for r in cur.fetchall()]
-    
-    # Traducir códigos ISO a nombres en español
     from tmdb import get_country_spanish
     translated = []
     for c in raw_countries:
@@ -496,7 +466,6 @@ def get_series_countries():
             translated.append(name)
         elif c not in translated:
             translated.append(c)
-    
     return sorted(set(translated))
 
 def get_series_continents():
