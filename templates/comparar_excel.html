@@ -9,7 +9,7 @@
             <div class="flex-grow w-full">
                 <label class="block text-sm font-medium text-gray-300 mb-1">Subir archivo CSV (exportado desde Excel)</label>
                 <input type="file" name="archivo" accept=".csv" required class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
-                <p class="text-xs text-gray-400 mt-1">Debe contener columnas como "Título" y "Título Original".</p>
+                <p class="text-xs text-gray-400 mt-1">Debe contener columnas como "Título", "Título Original" y "Año". Soporta separadores coma (,) o punto y coma (;).</p>
             </div>
             <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-medium transition h-10">
                 🔍 Comparar
@@ -19,38 +19,49 @@
 
     <!-- Resultados -->
     {% if resultados is not none %}
+        
+        <!-- Debug info -->
         <div class="bg-blue-900/30 border border-blue-700 p-4 rounded mb-4 text-sm">
             <p class="text-blue-300">📊 Filas procesadas del archivo: <strong>{{ total_rows }}</strong></p>
-            <p class="text-blue-300 text-xs mt-1">Si es 0, revisa que tu CSV tenga las columnas correctas (Título, Título Original)</p>
-        </div>    
-        <div class="mb-4 flex gap-4 text-sm">
-            <span class="text-red-400 font-bold">❌ Faltantes: {{ total_faltantes }}</span>
-            <span class="text-yellow-400 font-bold">⚠️ Posibles coincidencias: {{ total_posibles }}</span>
+            {% if total_rows == 0 %}
+            <p class="text-red-300 text-xs mt-1">⚠️ Si es 0, revisa que tu CSV tenga las columnas correctas (Título, Título Original, Año) y que use coma o punto y coma como separador.</p>
+            {% endif %}
         </div>
 
+        <!-- Contadores -->
+        <div class="mb-4 flex gap-4 text-sm flex-wrap">
+            <span class="text-red-400 font-bold">❌ Faltantes: {{ total_faltantes }}</span>
+            <span class="text-yellow-400 font-bold">⚠️ Revisar: {{ total_posibles }}</span>
+            <span class="text-green-400 font-bold">✅ Encontradas: {{ total_encontradas }}</span>
+        </div>
+
+        <!-- Tabla de resultados -->
         <div class="overflow-x-auto bg-gray-800 rounded-xl shadow-lg border border-gray-700">
             <table class="w-full text-left text-sm">
                 <thead class="bg-gray-700 text-gray-300 uppercase">
                     <tr>
                         <th class="px-4 py-3">Estado</th>
                         <th class="px-4 py-3">Título Original (Excel)</th>
+                        <th class="px-4 py-3">Año (Excel)</th>
                         <th class="px-4 py-3">Título (Excel)</th>
                         <th class="px-4 py-3">Coincidencia en tu Catálogo</th>
+                        <th class="px-4 py-3">Año (Catálogo)</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-700">
                     {% for r in resultados %}
                     <tr class="hover:bg-gray-750 transition">
-                        <td class="px-4 py-3 font-semibold">
-                            {% if r.status == '✅ Encontrada' %}
+                        <td class="px-4 py-3 font-semibold whitespace-nowrap">
+                            {% if '✅' in r.status %}
                                 <span class="text-green-400">{{ r.status }}</span>
-                            {% elif r.status == '⚠️ Posible coincidencia' %}
+                            {% elif '⚠️' in r.status %}
                                 <span class="text-yellow-400">{{ r.status }}</span>
                             {% else %}
                                 <span class="text-red-400">{{ r.status }}</span>
                             {% endif %}
                         </td>
                         <td class="px-4 py-3 text-white">{{ r.excel_orig }}</td>
+                        <td class="px-4 py-3 text-gray-300">{{ r.excel_year or '-' }}</td>
                         <td class="px-4 py-3 text-gray-400">{{ r.excel_title }}</td>
                         <td class="px-4 py-3">
                             {% if r.status != '❌ Faltante' %}
@@ -60,6 +71,7 @@
                                 <span class="text-gray-500">-</span>
                             {% endif %}
                         </td>
+                        <td class="px-4 py-3 text-gray-300">{{ r.db_year if r.db_year != '-' else '-' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
