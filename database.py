@@ -136,22 +136,26 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                     return q_norm in normalize_title(text)
                 movies = [m for m in movies if matches(m)]
             else:
-                if sort == "year_asc":
-                    query += " ORDER BY year ASC, title_original ASC"
-                elif sort == "year_desc":
-                    query += " ORDER BY year DESC, title_original ASC"
-                elif sort == "title_es":
-                    query += " ORDER BY LOWER(title_es) ASC"
-                elif sort == "title_original":
-                    query += " ORDER BY LOWER(title_original) ASC"
-                elif sort == "name":
-                    query += " ORDER BY LOWER(COALESCE(title_original, title_es)) ASC"
-                else:
-                    query += " ORDER BY id DESC"
-
-                query += f" LIMIT {limit} OFFSET {offset}"
                 cur.execute(query, params)
                 movies = [dict(r) for r in cur.fetchall()]
+
+            # Aplicar ordenamiento SIEMPRE (tanto con búsqueda como sin ella)
+            if sort == "year_asc":
+                movies.sort(key=lambda m: (m.get('year') or 0, m.get('title_original') or ''))
+            elif sort == "year_desc":
+                movies.sort(key=lambda m: (-(m.get('year') or 0), m.get('title_original') or ''), reverse=False)
+                movies.sort(key=lambda m: -(m.get('year') or 0))
+            elif sort == "title_es":
+                movies.sort(key=lambda m: (m.get('title_es') or '').lower())
+            elif sort == "title_original":
+                movies.sort(key=lambda m: (m.get('title_original') or m.get('title_es') or '').lower())
+            elif sort == "name":
+                movies.sort(key=lambda m: (m.get('title_original') or m.get('title_es') or '').lower())
+            else:
+                movies.sort(key=lambda m: m.get('id', 0), reverse=True)
+
+            # Aplicar paginación
+            movies = movies[offset:offset + limit]
 
     return movies
 
