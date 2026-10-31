@@ -235,6 +235,56 @@ async def edit_movie_page(request: Request, movie_id: int, admin: bool = Depends
     cast_list = [c.get("name", "") if isinstance(c, dict) else c for c in (json.loads(m.get("cast") or "[]") or [])]
     return templates.TemplateResponse("edit_movie.html", {"request": request, "movie": m, "cast_text": "\n".join(cast_list)})
 
+@app.get("/reidentify-movie/{movie_id}", response_class=HTMLResponse)
+async def reidentify_movie_form(request: Request, movie_id: int, admin: bool = Depends(check_admin)):
+    m = db.get_movie(movie_id)
+    if not m: return HTMLResponse("Película no encontrada", status_code=404)
+    return templates.TemplateResponse("reidentify_movie.html", {
+        "request": request, "movie": m, "results": None, "query": ""
+    })
+
+@app.post("/reidentify-movie/{movie_id}", response_class=HTMLResponse)
+async def reidentify_movie_search(request: Request, movie_id: int, query: str = Form(...), year: str = Form(""), admin: bool = Depends(check_admin)):
+    m = db.get_movie(movie_id)
+    if not m: return HTMLResponse("Película no encontrada", status_code=404)
+    results = await tmdb.search_movies(query, int(year) if year.isdigit() else None)
+    return templates.TemplateResponse("reidentify_movie.html", {
+        "request": request, "movie": m, "results": results, "query": query
+    })
+
+@app.get("/confirm-reidentify/{movie_id}/{new_tmdb_id}", response_class=HTMLResponse)
+async def confirm_reidentify_movie(request: Request, movie_id: int, new_tmdb_id: int, admin: bool = Depends(check_admin)):
+    m = db.get_movie(movie_id)
+    if not m: return HTMLResponse("Película no encontrada", status_code=404)
+    
+    # Obtener datos frescos de TMDB
+    new_data = await tmdb.get_movie_details(new_tmdb_id)
+    if not new_data:
+        return HTMLResponse("No se pudo obtener la película de TMDB", status_code=500)
+    
+    # Solo actualizar sinopsis, reparto y póster (respetar título, año, país, director)
+    new_synopsis = new_data.get('synopsis') or m.get('synopsis') or ''
+    new_poster = new_data.get('poster_url') or m.get('poster_url') or ''
+    new_cast = new_data.get('cast') or []
+    
+    with db.db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE movies SET 
+                    synopsis = %s, 
+                    poster_url = %s, 
+                    "cast" = %s 
+                WHERE id = %s
+            """, (
+                new_synopsis.strip() or None,
+                new_poster.strip() or None,
+                json.dumps(new_cast, ensure_ascii=False),
+                movie_id
+            ))
+        conn.commit()
+    
+    return RedirectResponse(f"/movie/{movie_id}", status_code=303)
+
 @app.post("/save-movie/{movie_id}")
 async def save_movie(
     movie_id: int, title_es: str = Form(""), title_original: str = Form(""), 
