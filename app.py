@@ -536,12 +536,7 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
     csv_file = io.StringIO(text)
     reader = csv.DictReader(csv_file)
     
-    # Debug: ver qué columnas tiene el archivo
-    if reader.fieldnames:
-        print(f"📊 COLUMNAS DETECTADAS: {reader.fieldnames}")
-    
     db_movies = db.list_movies(limit=10000)
-    
     db_origins = {}
     for m in db_movies:
         orig = m.get('title_original', '')
@@ -552,15 +547,14 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
     resultados = []
     total_rows = 0
     
-    # Nombres posibles para columnas
     possible_orig_cols = ['Título Original', 'titulo_original', 'Original', 'original', 'Title Original', 'title_original', 'Titulo Original']
     possible_title_cols = ['Título', 'titulo', 'Titulo', 'Title', 'title', 'Nombre', 'nombre', 'Name', 'name']
     
-    # Encontrar las columnas correctas
     orig_col = None
     title_col = None
     
     if reader.fieldnames:
+        print(f"📊 COLUMNAS DETECTADAS: {reader.fieldnames}")
         for col in reader.fieldnames:
             col_lower = col.lower().strip()
             for possible in possible_orig_cols:
@@ -594,7 +588,7 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
         else:
             matches = difflib.get_close_matches(norm_excel, db_origins_keys, n=1, cutoff=0.80)
             if matches:
-                status = "️ Posible coincidencia"
+                status = "⚠️ Posible coincidencia"
                 matched_movie = db_origins[matches[0]]
                 match_title = matched_movie.get('title_es', '')
                 match_orig = matched_movie.get('title_original', '')
@@ -615,9 +609,9 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
     print(f"📊 Resultados encontrados: {len(resultados)}")
     
     return templates.TemplateResponse("comparar_excel.html", {
-        "request": request, "resultados": resultados,
+        "request": request, 
+        "resultados": resultados,
         "total_faltantes": sum(1 for r in resultados if r["status"] == "❌ Faltante"),
-        "total_posibles": sum(1 for r in resultados if r["status"] == "️ Posible coincidencia"),
+        "total_posibles": sum(1 for r in resultados if r["status"] == "⚠️ Posible coincidencia"),
         "total_rows": total_rows
-    })
     })
