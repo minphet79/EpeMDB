@@ -126,7 +126,13 @@ async def api_search_live(q: str = ""):
     return JSONResponse(results[:15])
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request, q: str = "", sort: str = "name", continent: str = "", country: str = "", director: str = "", tag: str = "", page: int = 1, per_page: int = 20):
+async def index(request: Request, q: str = "", sort: str = "", continent: str = "", country: str = "", director: str = "", tag: str = "", page: int = 1, per_page: int = 24):
+    # Si no se especifica un orden y hay algún filtro activo, ordenar por año (más recientes primero)
+    if not sort and (continent or country or director or tag):
+        sort = "year_desc"
+    elif not sort:
+        sort = "name"
+    
     offset = (page - 1) * per_page
     movies = db.list_movies(q, sort, continent, country, director, tag, offset=offset, limit=per_page)
     total = db.count_movies(q, continent, country, director, tag)
