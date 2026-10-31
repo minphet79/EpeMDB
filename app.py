@@ -127,17 +127,16 @@ async def api_search_live(q: str = ""):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, q: str = "", sort: str = "", continent: str = "", country: str = "", director: str = "", tag: str = "", page: int = 1, per_page: int = 24):
-    # Lógica de ordenamiento inteligente
-    if sort == "auto" or sort == "":
-        if continent or country or director or tag:
-            sort = "year_desc" # Forzar año descendente si hay filtros activos
-        else:
-            sort = "name" # Por defecto, nombre (A-Z)
-    
+    # REGLA ESTRICTA: Si hay algún filtro activo, ordenar de más antiguo a más reciente
+    if continent or country or director or tag:
+        sort = "year_asc"
+    elif not sort:
+        sort = "name" # Orden por defecto si no hay filtros
+        
     offset = (page - 1) * per_page
     movies = db.list_movies(q, sort, continent, country, director, tag, offset=offset, limit=per_page)
     
-    # Parsear las etiquetas de texto JSON a lista de Python para el template
+    # Parsear las etiquetas para el template
     for m in movies:
         if m.get("tags"):
             try:
