@@ -35,11 +35,12 @@
         <div>
             <label class="block text-xs text-gray-400 mb-1">Ordenar por</label>
             <select name="sort" onchange="this.form.submit()" class="w-full bg-gray-700 text-white px-3 py-2 rounded text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="name" {% if sort == 'name' %}selected{% endif %}>🔤 Nombre (A-Z)</option>
+                <option value="auto" {% if sort == 'auto' or sort == '' %}selected{% endif %}>⚙️ Automático (Nombre o Año)</option>
                 <option value="year_desc" {% if sort == 'year_desc' %}selected{% endif %}>📅 Año (más recientes)</option>
                 <option value="year_asc" {% if sort == 'year_asc' %}selected{% endif %}>📅 Año (más antiguas)</option>
                 <option value="title_es" {% if sort == 'title_es' %}selected{% endif %}>🇪🇸 Título Español</option>
                 <option value="title_original" {% if sort == 'title_original' %}selected{% endif %}>🌍 Título Original</option>
+                <option value="name" {% if sort == 'name' %}selected{% endif %}>🔤 Nombre (A-Z) forzado</option>
             </select>
         </div>
 
