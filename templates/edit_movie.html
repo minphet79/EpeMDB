@@ -49,6 +49,38 @@
                    class="w-full bg-gray-700 px-3 py-2 rounded text-sm text-white focus:ring-2 focus:ring-blue-500">
         </div>
 
+        <!-- Etiquetas / Categorías (NUEVO) -->
+        <div>
+            <label class="block text-xs text-gray-400 mb-2">Etiquetas / Categorías</label>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {% set current_tags = movie.tags or '[]' %}
+                
+                <label class="flex items-center gap-2 bg-gray-700 px-3 py-2 rounded border border-gray-600 cursor-pointer hover:bg-gray-600 transition">
+                    <input type="checkbox" name="tags" value="Dibujos animados" class="w-4 h-4 text-yellow-500 rounded focus:ring-yellow-500 bg-gray-600 border-gray-500" 
+                           {% if '"Dibujos animados"' in current_tags %}checked{% endif %}>
+                    <span class="text-sm text-gray-200">🎨 Dibujos animados</span>
+                </label>
+                
+                <label class="flex items-center gap-2 bg-gray-700 px-3 py-2 rounded border border-gray-600 cursor-pointer hover:bg-gray-600 transition">
+                    <input type="checkbox" name="tags" value="Saga" class="w-4 h-4 text-purple-500 rounded focus:ring-purple-500 bg-gray-600 border-gray-500" 
+                           {% if '"Saga"' in current_tags %}checked{% endif %}>
+                    <span class="text-sm text-gray-200">🔗 Saga</span>
+                </label>
+                
+                <label class="flex items-center gap-2 bg-gray-700 px-3 py-2 rounded border border-gray-600 cursor-pointer hover:bg-gray-600 transition">
+                    <input type="checkbox" name="tags" value="MARVEL" class="w-4 h-4 text-red-500 rounded focus:ring-red-500 bg-gray-600 border-gray-500" 
+                           {% if '"MARVEL"' in current_tags %}checked{% endif %}>
+                    <span class="text-sm text-gray-200">🛡️ MARVEL</span>
+                </label>
+                
+                <label class="flex items-center gap-2 bg-gray-700 px-3 py-2 rounded border border-gray-600 cursor-pointer hover:bg-gray-600 transition">
+                    <input type="checkbox" name="tags" value="DC COMICS" class="w-4 h-4 text-blue-500 rounded focus:ring-blue-500 bg-gray-600 border-gray-500" 
+                           {% if '"DC COMICS"' in current_tags %}checked{% endif %}>
+                    <span class="text-sm text-gray-200">🦇 DC COMICS</span>
+                </label>
+            </div>
+        </div>
+
         <!-- URL del póster -->
         <div>
             <label class="block text-xs text-gray-400 mb-1">URL del póster</label>
@@ -80,16 +112,16 @@
         </div>
 
         <!-- Info técnica -->
-<div class="bg-gray-900 p-3 rounded border border-gray-700 text-xs text-gray-500">
-    <p><b>ID interno:</b> {{ movie.id }}</p>
-    <div class="mt-2">
-        <label class="block text-xs text-yellow-400 mb-1">TMDB ID (cámbialo si los datos están mezclados):</label>
-        <input type="number" name="tmdb_id" value="{{ movie.tmdb_id or '' }}" 
-               class="w-full bg-gray-700 px-2 py-1 rounded text-xs text-white"
-               placeholder="Deja vacío si no tiene">
-    </div>
-    <p class="mt-2"><b>Plex Key:</b> {{ movie.plex_key or 'No vinculado' }}</p>
-</div>
+        <div class="bg-gray-900 p-3 rounded border border-gray-700 text-xs text-gray-500">
+            <p><b>ID interno:</b> {{ movie.id }}</p>
+            <div class="mt-2">
+                <label class="block text-xs text-yellow-400 mb-1">TMDB ID (cámbialo si los datos están mezclados):</label>
+                <input type="number" name="tmdb_id" value="{{ movie.tmdb_id or '' }}" 
+                       class="w-full bg-gray-700 px-2 py-1 rounded text-xs text-white"
+                       placeholder="Deja vacío si no tiene">
+            </div>
+            <p class="mt-2"><b>Plex Key:</b> {{ movie.plex_key or 'No vinculado' }}</p>
+        </div>
 
         <!-- Botones -->
         <div class="flex flex-wrap gap-3 pt-2 border-t border-gray-700">
