@@ -521,10 +521,6 @@ async def update_serie_poster(request: Request, series_id: int, poster_url: str 
     return RedirectResponse(f"/serie/{series_id}", status_code=303)
 
 # === RUTA DE COMPARACIÓN CON EXCEL/CSV ===
-@app.get("/comparar-excel", response_class=HTMLResponse)
-async def comparar_excel_form(request: Request, admin: bool = Depends(check_admin)):
-    return templates.TemplateResponse("comparar_excel.html", {"request": request, "resultados": None})
-
 @app.post("/comparar-excel", response_class=HTMLResponse)
 async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...), admin: bool = Depends(check_admin)):
     contents = await archivo.read()
@@ -533,10 +529,17 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
     except UnicodeDecodeError:
         text = contents.decode('latin-1')
     
+    # Detectar delimitador automáticamente
+    first_line = text.split('\n')[0]
+    delimiter = ';' if ';' in first_line else ','
+    print(f"📊 Delimitador detectado: '{delimiter}'")
+    
     csv_file = io.StringIO(text)
-    reader = csv.DictReader(csv_file)
+    reader = csv.DictReader(csv_file, delimiter=delimiter)
     
     db_movies = db.list_movies(limit=10000)
+    
+    # Construir índice de búsqueda por título original normalizado
     db_origins = {}
     for m in db_movies:
         orig = m.get('title_original', '')
@@ -547,27 +550,46 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
     resultados = []
     total_rows = 0
     
-    possible_orig_cols = ['Título Original', 'titulo_original', 'Original', 'original', 'Title Original', 'title_original', 'Titulo Original']
+    # Nombres posibles para columnas
+    possible_orig_cols = ['Título Original', 'titulo_original', 'Original', 'original', 'Title Original', 'Titulo Original']
     possible_title_cols = ['Título', 'titulo', 'Titulo', 'Title', 'title', 'Nombre', 'nombre', 'Name', 'name']
+    possible_year_cols = ['Año', 'anio', 'año', 'Year', 'year', 'Anio']
     
     orig_col = None
     title_col = None
+    year_col = None
     
     if reader.fieldnames:
         print(f"📊 COLUMNAS DETECTADAS: {reader.fieldnames}")
         for col in reader.fieldnames:
-            col_lower = col.lower().strip()
+            col_clean = col.strip()
+            col_lower = col_clean.lower()
             for possible in possible_orig_cols:
-                if possible.lower() in col_lower or col_lower in possible.lower():
-                    orig_col = col
+                if possible.lower() == col_lower:
+                    orig_col = col_clean
                     break
             for possible in possible_title_cols:
-                if possible.lower() in col_lower or col_lower in possible.lower():
-                    title_col = col
+                if possible.lower() == col_lower:
+                    title_col = col_clean
+                    break
+            for possible in possible_year_cols:
+                if possible.lower() == col_lower:
+                    year_col = col_clean
                     break
     
     print(f"✅ Columna título original usada: {orig_col}")
     print(f"✅ Columna título usada: {title_col}")
+    print(f"✅ Columna año usada: {year_col}")
+    
+    # Artículos a ignorar al inicio para comparación
+    articulos = ['the ', 'el ', 'la ', 'los ', 'las ', 'un ', 'una ', 'unos ', 'unas ', 'a ', 'an ']
+    
+    def quitar_articulos(texto):
+        t = texto.lower().strip()
+        for art in articulos:
+            if t.startswith(art):
+                return t[len(art):].strip()
+        return t
     
     for row in reader:
         total_rows += 1
@@ -576,34 +598,76 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
             
         excel_orig = row.get(orig_col, '').strip()
         excel_title = row.get(title_col, '').strip()
+        excel_year = row.get(year_col, '').strip() if year_col else ''
         
         if not excel_orig: 
             continue
             
         norm_excel = normalize_search(excel_orig)
+        excel_year_int = int(excel_year) if excel_year.isdigit() else None
+        
+        # 1. Búsqueda exacta por título original
         if norm_excel in db_origins:
-            status = "✅ Encontrada"
-            match_title = db_origins[norm_excel].get('title_es', '')
-            match_orig = db_origins[norm_excel].get('title_original', '')
-        else:
-            matches = difflib.get_close_matches(norm_excel, db_origins_keys, n=1, cutoff=0.80)
-            if matches:
-                status = "⚠️ Posible coincidencia"
-                matched_movie = db_origins[matches[0]]
-                match_title = matched_movie.get('title_es', '')
-                match_orig = matched_movie.get('title_original', '')
+            db_movie = db_origins[norm_excel]
+            # Si hay año en Excel, verificar que coincida
+            if excel_year_int and db_movie.get('year'):
+                if abs(db_movie['year'] - excel_year_int) <= 1:
+                    status = "✅ Encontrada"
+                else:
+                    status = "⚠️ Título coincide pero año difiere"
             else:
-                status = "❌ Faltante"
-                match_title = "-"
-                match_orig = "-"
-                
+                status = "✅ Encontrada"
+            match_title = db_movie.get('title_es', '')
+            match_orig = db_movie.get('title_original', '')
+            match_year = db_movie.get('year', '')
+        else:
+            # 2. Búsqueda ignorando artículos al inicio
+            excel_sin_art = quitar_articulos(norm_excel)
+            found = False
+            for db_norm, db_movie in db_origins.items():
+                db_sin_art = quitar_articulos(db_norm)
+                if excel_sin_art == db_sin_art:
+                    status = "✅ Encontrada (ignorando artículo)"
+                    match_title = db_movie.get('title_es', '')
+                    match_orig = db_movie.get('title_original', '')
+                    match_year = db_movie.get('year', '')
+                    found = True
+                    break
+            
+            if not found:
+                # 3. Búsqueda difusa (fuzzy matching) con umbral 0.85
+                matches = difflib.get_close_matches(norm_excel, db_origins_keys, n=1, cutoff=0.85)
+                if matches:
+                    matched_movie = db_origins[matches[0]]
+                    # Verificar año si está disponible
+                    if excel_year_int and matched_movie.get('year'):
+                        if abs(matched_movie['year'] - excel_year_int) <= 2:
+                            status = "⚠️ Posible coincidencia"
+                        else:
+                            status = "⚠️ Título similar pero año muy distinto"
+                    else:
+                        status = "⚠️ Posible coincidencia"
+                    match_title = matched_movie.get('title_es', '')
+                    match_orig = matched_movie.get('title_original', '')
+                    match_year = matched_movie.get('year', '')
+                else:
+                    status = "❌ Faltante"
+                    match_title = "-"
+                    match_orig = "-"
+                    match_year = "-"
+                    
         resultados.append({
-            "excel_title": excel_title, "excel_orig": excel_orig, "status": status,
-            "db_title": match_title, "db_orig": match_orig
+            "excel_title": excel_title, 
+            "excel_orig": excel_orig, 
+            "excel_year": excel_year,
+            "status": status,
+            "db_title": match_title, 
+            "db_orig": match_orig,
+            "db_year": match_year
         })
         
-    orden = {"❌ Faltante": 0, "⚠️ Posible coincidencia": 1, "✅ Encontrada": 2}
-    resultados.sort(key=lambda x: orden.get(x["status"], 3))
+    orden = {"❌ Faltante": 0, "⚠️ Posible coincidencia": 1, "⚠️ Título similar pero año muy distinto": 2, "⚠️ Título coincide pero año difiere": 3, "✅ Encontrada": 4, "✅ Encontrada (ignorando artículo)": 5}
+    resultados.sort(key=lambda x: orden.get(x["status"], 6))
     
     print(f"📊 Total filas procesadas: {total_rows}")
     print(f"📊 Resultados encontrados: {len(resultados)}")
@@ -612,6 +676,7 @@ async def comparar_excel_submit(request: Request, archivo: UploadFile = Form(...
         "request": request, 
         "resultados": resultados,
         "total_faltantes": sum(1 for r in resultados if r["status"] == "❌ Faltante"),
-        "total_posibles": sum(1 for r in resultados if r["status"] == "⚠️ Posible coincidencia"),
+        "total_posibles": sum(1 for r in resultados if "⚠️" in r["status"]),
+        "total_encontradas": sum(1 for r in resultados if "✅" in r["status"]),
         "total_rows": total_rows
     })
