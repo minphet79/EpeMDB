@@ -237,11 +237,18 @@ async def edit_movie_page(request: Request, movie_id: int, admin: bool = Depends
 
 @app.get("/reidentify-movie/{movie_id}", response_class=HTMLResponse)
 async def reidentify_movie_form(request: Request, movie_id: int, admin: bool = Depends(check_admin)):
-    m = db.get_movie(movie_id)
-    if not m: return HTMLResponse("Película no encontrada", status_code=404)
-    return templates.TemplateResponse("reidentify_movie.html", {
-        "request": request, "movie": m, "results": None, "query": ""
-    })
+    try:
+        print(f"🔍 DEBUG: Intentando obtener película con ID {movie_id}")
+        m = db.get_movie(movie_id)
+        print(f"🔍 DEBUG: Película obtenida: {m}")
+        if not m: 
+            return HTMLResponse("Película no encontrada", status_code=404)
+        return templates.TemplateResponse("reidentify_movie.html", {
+            "request": request, "movie": m, "results": None, "query": ""
+        })
+    except Exception as e:
+        print(f"🚨 ERROR CRÍTICO en reidentify_movie_form: {e}")
+        return HTMLResponse(f"<h1>Error interno</h1><p>{str(e)}</p>", status_code=500)
 
 @app.post("/reidentify-movie/{movie_id}", response_class=HTMLResponse)
 async def reidentify_movie_search(request: Request, movie_id: int, query: str = Form(...), year: str = Form(""), admin: bool = Depends(check_admin)):
