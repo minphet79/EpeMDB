@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-white mb-6">📊 Comparar Colección con Excel/CSV</h1>
+    
+    <!-- Formulario de subida -->
+    <div class="bg-gray-800 p-6 rounded-xl shadow-lg border border-gray-700 mb-8">
+        <form action="/comparar-excel" method="POST" enctype="multipart/form-data" class="flex flex-col sm:flex-row gap-4 items-end">
+            <div class="flex-grow w-full">
+                <label class="block text-sm font-medium text-gray-300 mb-1">Subir archivo CSV (exportado desde Excel)</label>
+                <input type="file" name="archivo" accept=".csv" required class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:ring-2 focus:ring-blue-500">
+                <p class="text-xs text-gray-400 mt-1">Debe contener columnas como "Título" y "Título Original".</p>
+            </div>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-medium transition h-10">
+                🔍 Comparar
+            </button>
+        </form>
+    </div>
+
+    <!-- Resultados -->
+    {% if resultados is not none %}
+        <div class="mb-4 flex gap-4 text-sm">
+            <span class="text-red-400 font-bold">❌ Faltantes: {{ total_faltantes }}</span>
+            <span class="text-yellow-400 font-bold">⚠️ Posibles coincidencias: {{ total_posibles }}</span>
+        </div>
+
+        <div class="overflow-x-auto bg-gray-800 rounded-xl shadow-lg border border-gray-700">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-gray-700 text-gray-300 uppercase">
+                    <tr>
+                        <th class="px-4 py-3">Estado</th>
+                        <th class="px-4 py-3">Título Original (Excel)</th>
+                        <th class="px-4 py-3">Título (Excel)</th>
+                        <th class="px-4 py-3">Coincidencia en tu Catálogo</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700">
+                    {% for r in resultados %}
+                    <tr class="hover:bg-gray-750 transition">
+                        <td class="px-4 py-3 font-semibold">
+                            {% if r.status == '✅ Encontrada' %}
+                                <span class="text-green-400">{{ r.status }}</span>
+                            {% elif r.status == '⚠️ Posible coincidencia' %}
+                                <span class="text-yellow-400">{{ r.status }}</span>
+                            {% else %}
+                                <span class="text-red-400">{{ r.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-white">{{ r.excel_orig }}</td>
+                        <td class="px-4 py-3 text-gray-400">{{ r.excel_title }}</td>
+                        <td class="px-4 py-3">
+                            {% if r.status != '❌ Faltante' %}
+                                <div class="text-white">{{ r.db_title }}</div>
+                                <div class="text-xs text-gray-500 italic">{{ r.db_orig }}</div>
+                            {% else %}
+                                <span class="text-gray-500">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="mt-6 text-center">
+            <a href="/comparar-excel" class="text-blue-400 hover:text-blue-300 underline">← Volver a subir otro archivo</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
