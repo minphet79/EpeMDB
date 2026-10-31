@@ -377,6 +377,23 @@ async def edit_serie_page(request: Request, series_id: int, admin: bool = Depend
     cast_list = [c.get("name", "") if isinstance(c, dict) else c for c in (json.loads(s.get("cast") or "[]") or [])]
     return templates.TemplateResponse("edit_serie.html", {"request": request, "serie": s, "cast_text": "\n".join(cast_list), "categories": db.get_series_categories()})
 
+# Función auxiliar: busca el ID de un actor por su nombre en la BD de películas
+def _find_actor_id_by_name(actor_name):
+    if not actor_name:
+        return None, None
+    name_norm = normalize_search(actor_name)
+    try:
+        for m in db.list_movies(limit=10000):
+            cast_list = json.loads(m["cast"]) if m["cast"] else []
+            for c in cast_list:
+                if isinstance(c, dict) and c.get("name"):
+                    if normalize_search(c["name"]) == name_norm:
+                        return c.get("id"), c.get("profile_path")
+    except Exception:
+        pass
+    return None, None
+
+
 @app.post("/save-serie/{series_id}")
 async def save_serie(
     series_id: int, name: str = Form(""), name_original: str = Form(""), 
@@ -387,21 +404,15 @@ async def save_serie(
 ):
     tmdb_id_int = int(tmdb_id) if tmdb_id and tmdb_id.isdigit() else None
 
-    # Cargar serie actual para conservar IDs/fotos de actores ya existentes
+    # Cargar serie actual para conservar datos de actores ya existentes
     current_serie = db.get_series(series_id) or {}
     current_cast_raw = current_serie.get("cast") or "[]"
-
     try:
-        if isinstance(current_cast_raw, str):
-            current_cast = json.loads(current_cast_raw)
-        else:
-            current_cast = current_cast_raw or []
+        current_cast = json.loads(current_cast_raw) if isinstance(current_cast_raw, str) else (current_cast_raw or [])
     except Exception:
         current_cast = []
 
     tmdb_cast_list = []
-
-    # Traer datos de TMDB solo como respaldo, no para pisar el reparto editado manualmente
     if tmdb_id_int:
         try:
             tmdb_data = await tmdb.get_series_details(tmdb_id_int)
@@ -417,24 +428,20 @@ async def save_serie(
                         for c in tmdb_data["cast"][:15]
                         if c.get("name")
                     ]
-
                 synopsis = synopsis or tmdb_data.get("synopsis") or ""
                 poster_url = poster_url or tmdb_data.get("poster_url") or ""
                 creator = creator or tmdb_data.get("creator") or ""
         except Exception:
             pass
 
-    # IMPORTANTE:
-    # Si el usuario escribió reparto manual, ese reparto manda.
-    # Se intenta conservar id/foto/personaje si el nombre ya existía en la BD o en TMDB.
     cast_list = []
 
     if cast_text.strip():
+        # Construir diccionario de actores conocidos (serie actual + TMDB)
         known_cast = {}
-
         for c in current_cast + tmdb_cast_list:
             if isinstance(c, dict) and c.get("name"):
-                known_cast[normalize_search(c.get("name"))] = c
+                known_cast[normalize_search(c["name"])] = c
 
         for line in cast_text.strip().split("\n"):
             actor_name = line.strip()
@@ -442,33 +449,35 @@ async def save_serie(
                 continue
 
             old = known_cast.get(normalize_search(actor_name), {})
+            actor_id = old.get("id")
+            profile_path = old.get("profile_path")
+            character = old.get("character", "")
+
+            # Si el actor no tiene ID, buscarlo en la BD de películas
+            if not actor_id:
+                found_id, found_photo = _find_actor_id_by_name(actor_name)
+                if found_id:
+                    actor_id = found_id
+                if found_photo and not profile_path:
+                    profile_path = found_photo
 
             cast_list.append({
                 "name": actor_name,
-                "id": old.get("id"),
-                "profile_path": old.get("profile_path"),
-                "character": old.get("character", "")
+                "id": actor_id,
+                "profile_path": profile_path,
+                "character": character
             })
     else:
-        # Si no hay reparto manual, usar el de TMDB si existe; si no, conservar el actual
         cast_list = tmdb_cast_list or current_cast
 
     with db.db() as conn:
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE series SET 
-                    tmdb_id = %(tmdb_id)s,
-                    name = %(name)s,
-                    name_original = %(name_original)s, 
-                    first_air_date = %(first_air_date)s,
-                    country = %(country)s,
-                    category = %(category)s, 
-                    creator = %(creator)s,
-                    synopsis = %(synopsis)s,
-                    poster_url = %(poster_url)s, 
-                    "cast" = %(cast)s,
-                    seasons = %(seasons)s,
-                    episodes = %(episodes)s 
+                    tmdb_id = %(tmdb_id)s, name = %(name)s, name_original = %(name_original)s, 
+                    first_air_date = %(first_air_date)s, country = %(country)s, category = %(category)s, 
+                    creator = %(creator)s, synopsis = %(synopsis)s, poster_url = %(poster_url)s, 
+                    "cast" = %(cast)s, seasons = %(seasons)s, episodes = %(episodes)s 
                 WHERE id = %(series_id)s
             """, {
                 "tmdb_id": tmdb_id_int,
