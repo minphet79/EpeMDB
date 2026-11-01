@@ -141,79 +141,66 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
 
             # Aplicar ordenamiento SIEMPRE (tanto con búsqueda como sin ella)
             if sort == "saga_sort":
-                # Palabras que no deben contar como "identidad" de la saga, 
-                # pero SÍ pueden ayudar a alcanzar el mínimo de 2 palabras en común.
-                # Añadimos palabras comunes de subtítulos de películas para evitar falsos positivos.
-                STOPWORDS = {
-                    # Artículos y preposiciones (ahora SÍ cuentan para el grupo, pero no definen la saga)
-                    "the", "of", "and", "for", "to", "in", "on", "at", "by", "from", "with", "about",
-                    "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "al", "y", "e",
-                    "o", "u", "que", "en", "por", "para", "con", "sin", "sobre", "tras", "hasta", "desde",
-                    "hacia", "según", "durante", "mediante", "bajo", "entre", "contra", "le", "les", "lo",
-                    "su", "sus", "mi", "tu", "nos", "os", "me", "te", "se", "a", "ante", "cabe",
-                    "excepto", "salvo", "incluso", "via", "so", "no", "es", "son", "ser", "estar",
-                    "an", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
-                    "do", "does", "did", "will", "would", "could", "should", "may", "might", "can",
-                    # Palabras comunes de subtítulos/secuelas (evita que "Battle" una sagas distintas)
-                    "battle", "return", "rise", "war", "revenge", "legacy", "resurrection", 
-                    "reloaded", "revolutions", "resurrections", "part", "parte", "episode", "capitulo",
-                    "beginnings", "origins", "final", "ultimo", "last", "new", "nuevo", "next", "siguiente"
-                }
+                import unicodedata
 
-                def get_key_words(title):
-                    if not title: return set()
-                    import unicodedata
-                    t = unicodedata.normalize('NFD', str(title)).encode('ascii', 'ignore').decode('utf-8').lower()
-                    t = t.replace(':', '').replace('-', '').replace('.', '').replace(',', '')
+                def normalize(t):
+                    if not t: return ""
+                    t = unicodedata.normalize('NFD', str(t)).encode('ascii', 'ignore').decode('utf-8').lower()
+                    return t.replace(':', '').replace('-', '').replace('.', '').replace(',', '')
+
+                def get_first_two_words(t):
                     words = t.split()
-                    # Filtramos palabras muy cortas (<3 letras)
-                    return {w for w in words if len(w) >= 3}
+                    if len(words) >= 2:
+                        return " ".join(words[:2])
+                    return t
 
-                saga_groups = {}
-                
+                # 1. Agrupar películas
+                saga_groups = {} 
+
                 for m in movies:
-                    title = m.get('title_original') or m.get('title_es') or ''
-                    key_words = get_key_words(title)
-                    
-                    if not key_words:
-                        saga_id = f"unique_{id(m)}"
-                        saga_groups[saga_id] = {"movies": [m], "start_year": m.get('year') or 9999, "name": title, "all_words": set()}
-                        continue
-                    
-                    matched_saga = None
-                    for saga_id, saga_data in saga_groups.items():
-                        # Comparar con todas las palabras acumuladas del grupo
-                        common = key_words & saga_data["all_words"]
-                        
-                        # Filtrar las palabras en común para ver cuántas son "identidad" (no stopwords)
-                        significant_common = {w for w in common if w not in STOPWORDS}
-                        
-                        # REGLA: Deben compartir al menos 2 palabras en total, 
-                        # Y al menos 1 de esas debe ser una palabra "identidad" (no stopword)
-                        if len(common) >= 2 and len(significant_common) >= 1:
-                            matched_saga = saga_id
+                    title_orig = m.get('title_original') or m.get('title_es') or ''
+                    norm_title = normalize(title_orig)
+                    prefix = get_first_two_words(norm_title)
+                    year = m.get('year') or 9999
+
+                    matched_group = None
+
+                    for gid, gdata in saga_groups.items():
+                        # REGLA 1: Substring (el título más corto debe tener al menos 10 letras para evitar "el" o "it")
+                        shorter = min(norm_title, gdata['rep_title'], key=len)
+                        longer = max(norm_title, gdata['rep_title'], key=len)
+
+                        if len(shorter) >= 10 and shorter in longer:
+                            matched_group = gid
                             break
-                    
-                    if matched_saga:
-                        saga_groups[matched_saga]["movies"].append(m)
-                        saga_groups[matched_saga]["all_words"].update(key_words)
-                        year = m.get('year') or 9999
-                        if year < saga_groups[matched_saga]["start_year"]:
-                            saga_groups[matched_saga]["start_year"] = year
+
+                        # REGLA 2: Mismo prefijo de 2 palabras (ej: "the hobbit", "star wars", "back to")
+                        if prefix and gdata['prefix'] and prefix == gdata['prefix']:
+                            matched_group = gid
+                            break
+
+                    if matched_group:
+                        saga_groups[matched_group]['movies'].append(m)
+                        if year < saga_groups[matched_group]['start_year']:
+                            saga_groups[matched_group]['start_year'] = year
+                        # Mantener el título más corto como representante para mejorar futuros substring
+                        if len(norm_title) < len(saga_groups[matched_group]['rep_title']):
+                            saga_groups[matched_group]['rep_title'] = norm_title
                     else:
-                        saga_id = title.lower()[:50]
-                        saga_groups[saga_id] = {
-                            "movies": [m], 
-                            "start_year": m.get('year') or 9999, 
-                            "name": title,
-                            "all_words": key_words
+                        gid = title_orig.lower()[:50]
+                        saga_groups[gid] = {
+                            'movies': [m],
+                            'start_year': year,
+                            'rep_title': norm_title,
+                            'prefix': prefix
                         }
-                
-                sorted_sagas = sorted(saga_groups.values(), key=lambda s: (s["start_year"], s["name"].lower()))
+
+                # 2. Ordenar sagas por año de inicio y aplanar
+                sorted_sagas = sorted(saga_groups.values(), key=lambda s: (s['start_year'], s['rep_title']))
                 
                 movies = []
                 for saga in sorted_sagas:
-                    saga_movies = sorted(saga["movies"], key=lambda m: m.get('year') or 0)
+                    saga_movies = sorted(saga['movies'], key=lambda m: m.get('year') or 0)
                     movies.extend(saga_movies)
                     
             # Aplicar paginación
