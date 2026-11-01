@@ -127,9 +127,9 @@ async def api_search_live(q: str = ""):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request, q: str = "", sort: str = "", continent: str = "", country: str = "", director: str = "", tag: str = "", page: int = 1, per_page: int = 24):
-# Si hay búsqueda o algún filtro activo, ordenar de más antiguo a más reciente
-if q or continent or country or director or tag:
-    sort = "year_asc"
+    # Si hay búsqueda o algún filtro activo, ordenar de más antiguo a más reciente
+    if q or continent or country or director or tag:
+        sort = "year_asc"
     elif not sort:
         sort = "name" # Orden por defecto si no hay filtros ni búsqueda
         
