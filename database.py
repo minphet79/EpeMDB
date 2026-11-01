@@ -141,17 +141,25 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
 
             # Aplicar ordenamiento SIEMPRE (tanto con búsqueda como sin ella)
             if sort == "saga_sort":
-                # Función para extraer palabras clave (filtramos palabras muy cortas < 3 letras)
+                # Palabras que no deben contar para agrupar (artículos, preposiciones, etc.)
+                STOPWORDS = {
+                    "the", "of", "and", "for", "to", "in", "on", "at", "by", "from", "with", "about",
+                    "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "al", "y", "e",
+                    "o", "u", "que", "en", "por", "para", "con", "sin", "sobre", "tras", "hasta", "desde",
+                    "hacia", "según", "durante", "mediante", "bajo", "entre", "contra", "le", "les", "lo",
+                    "su", "sus", "mi", "tu", "nos", "os", "me", "te", "se", "a", "ante", "cabe",
+                    "excepto", "salvo", "incluso", "via", "so", "no", "es", "son", "ser", "estar"
+                }
+
                 def get_key_words(title):
                     if not title: return set()
                     import unicodedata
                     t = unicodedata.normalize('NFD', str(title)).encode('ascii', 'ignore').decode('utf-8').lower()
                     t = t.replace(':', '').replace('-', '').replace('.', '').replace(',', '')
                     words = t.split()
-                    # Mantenemos palabras de 3 letras o más (incluye 'don', 'el', 'los')
-                    return {w for w in words if len(w) >= 3}
+                    # Filtramos palabras cortas (<3 letras) Y stopwords
+                    return {w for w in words if len(w) >= 3 and w not in STOPWORDS}
 
-                # 1. Identificar grupos de sagas
                 saga_groups = {}
                 
                 for m in movies:
@@ -160,25 +168,23 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                     
                     if not key_words:
                         saga_id = f"unique_{id(m)}"
-                        saga_groups[saga_id] = {"movies": [m], "start_year": m.get('year') or 9999, "name": title}
+                        saga_groups[saga_id] = {"movies": [m], "start_year": m.get('year') or 9999, "name": title, "all_words": set()}
                         continue
                     
                     matched_saga = None
                     for saga_id, saga_data in saga_groups.items():
-                        existing_words = get_key_words(saga_data["name"])
-                        common = key_words & existing_words
+                        # Comparar con todas las palabras acumuladas del grupo
+                        common = key_words & saga_data["all_words"]
                         
-                        # REGLA CLAVE: Deben compartir al menos 2 palabras, 
-                        # Y al menos una de esas palabras debe tener 4 letras o más 
-                        # (para evitar que "El" y "Los" unan sagas distintas)
-                        has_significant_word = any(len(w) >= 4 for w in common)
-                        
-                        if len(common) >= 2 and has_significant_word:
+                        # Deben compartir al menos 2 palabras clave (que no sean stopwords)
+                        if len(common) >= 2:
                             matched_saga = saga_id
                             break
                     
                     if matched_saga:
                         saga_groups[matched_saga]["movies"].append(m)
+                        # Actualizar palabras acumuladas del grupo
+                        saga_groups[matched_saga]["all_words"].update(key_words)
                         year = m.get('year') or 9999
                         if year < saga_groups[matched_saga]["start_year"]:
                             saga_groups[matched_saga]["start_year"] = year
@@ -187,10 +193,11 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                         saga_groups[saga_id] = {
                             "movies": [m], 
                             "start_year": m.get('year') or 9999, 
-                            "name": title
+                            "name": title,
+                            "all_words": key_words
                         }
                 
-                # 2. Aplanar y ordenar
+                # Ordenar sagas por año de inicio, y dentro de cada saga por año de película
                 sorted_sagas = sorted(saga_groups.values(), key=lambda s: (s["start_year"], s["name"].lower()))
                 
                 movies = []
