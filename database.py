@@ -149,8 +149,8 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                     t = unicodedata.normalize('NFD', str(title)).encode('ascii', 'ignore').decode('utf-8').lower()
                     t = t.replace(':', '').replace('-', '').replace('.', '').replace(',', '')
                     words = t.split()
-                    # Filtrar palabras cortas/artículos (menos de 4 letras)
-                    significant = {w for w in words if len(w) >= 4}
+                    # Filtrar palabras muy cortas (menos de 3 letras)
+                    significant = {w for w in words if len(w) >= 3}
                     return significant
 
                 # 1. Identificar grupos de sagas basados en palabras clave compartidas
