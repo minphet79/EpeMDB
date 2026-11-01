@@ -141,47 +141,65 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
 
             # Aplicar ordenamiento SIEMPRE (tanto con búsqueda como sin ella)
             if sort == "saga_sort":
-                # Función auxiliar para extraer el "prefijo de saga" (primeras 2 palabras)
-                def get_saga_prefix(title):
-                    if not title: return ""
+                # Función para extraer palabras clave significativas de un título
+                def get_key_words(title):
+                    if not title: return set()
                     import unicodedata
+                    # Normalizar: minúsculas, sin acentos
                     t = unicodedata.normalize('NFD', str(title)).encode('ascii', 'ignore').decode('utf-8').lower()
                     t = t.replace(':', '').replace('-', '').replace('.', '').replace(',', '')
                     words = t.split()
-                    if len(words) <= 2:
-                        return " ".join(words)
-                    return " ".join(words[:2])
+                    # Filtrar palabras cortas/artículos (menos de 4 letras)
+                    significant = {w for w in words if len(w) >= 4}
+                    return significant
 
-                # 1. Calcular el año de inicio de cada "saga" (buscando el prefijo en cualquier parte del título)
-                saga_start_years = {}
+                # 1. Identificar grupos de sagas basados en palabras clave compartidas
+                # Dos películas son de la misma saga si comparten al menos 2 palabras clave significativas
+                saga_groups = {}  # {saga_id: [movies]}
+                
                 for m in movies:
                     title = m.get('title_original') or m.get('title_es') or ''
-                    prefix = get_saga_prefix(title)
-                    year = m.get('year') or 9999
+                    key_words = get_key_words(title)
                     
-                    if not prefix: continue
-
-                    # Buscar si este prefijo aparece en cualquier parte de otros títulos
-                    for m2 in movies:
-                        title2 = m2.get('title_original') or m2.get('title_es') or ''
-                        import unicodedata
-                        t2 = unicodedata.normalize('NFD', str(title2)).encode('ascii', 'ignore').decode('utf-8').lower()
-                        t2 = t2.replace(':', '').replace('-', '').replace('.', '').replace(',', '')
-                        
-                        if prefix in t2:
-                            year2 = m2.get('year') or 9999
-                            if prefix not in saga_start_years or year2 < saga_start_years[prefix]:
-                                saga_start_years[prefix] = year2
+                    if not key_words:
+                        # Película sin palabras clave, grupo individual
+                        saga_id = f"unique_{id(m)}"
+                        saga_groups[saga_id] = {"movies": [m], "start_year": m.get('year') or 9999, "name": title}
+                        continue
+                    
+                    # Buscar si pertenece a alguna saga existente
+                    matched_saga = None
+                    for saga_id, saga_data in saga_groups.items():
+                        existing_words = get_key_words(saga_data["name"])
+                        # Contar palabras en común
+                        common = key_words & existing_words
+                        if len(common) >= 2:  # Al menos 2 palabras en común
+                            matched_saga = saga_id
+                            break
+                    
+                    if matched_saga:
+                        # Añadir a la saga existente
+                        saga_groups[matched_saga]["movies"].append(m)
+                        year = m.get('year') or 9999
+                        if year < saga_groups[matched_saga]["start_year"]:
+                            saga_groups[matched_saga]["start_year"] = year
+                    else:
+                        # Crear nueva saga
+                        saga_id = title.lower()[:50]  # ID único basado en título
+                        saga_groups[saga_id] = {
+                            "movies": [m], 
+                            "start_year": m.get('year') or 9999, 
+                            "name": title
+                        }
                 
-                # 2. Ordenar: 
-                #    - Primero por el año de inicio de la saga
-                #    - Segundo por el nombre del prefijo (para mantenerlas agrupadas)
-                #    - Tercero por el año de la película individual
-                movies.sort(key=lambda m: (
-                    saga_start_years.get(get_saga_prefix(m.get('title_original') or m.get('title_es') or ''), 9999),
-                    get_saga_prefix(m.get('title_original') or m.get('title_es') or ''),
-                    m.get('year') or 0
-                ))
+                # 2. Aplanar y ordenar
+                # Primero ordenar sagas por año de inicio, luego películas dentro de cada saga por año
+                sorted_sagas = sorted(saga_groups.values(), key=lambda s: (s["start_year"], s["name"].lower()))
+                
+                movies = []
+                for saga in sorted_sagas:
+                    saga_movies = sorted(saga["movies"], key=lambda m: m.get('year') or 0)
+                    movies.extend(saga_movies)
 
             # Aplicar paginación
             movies = movies[offset:offset + limit]
