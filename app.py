@@ -161,13 +161,13 @@ async def add_form(request: Request):
     return templates.TemplateResponse("add.html", {"request": request})
 
 @app.post("/search", response_class=HTMLResponse)
-async def search_tmdb(request: Request, type: str = Form("movie"), query: str = Form(...), year: str = Form(""), admin: bool = Depends(check_admin)):
+async def search_tmdb(request: Request, type: str = Form("movie"), query: str = Form(...), year: str = Form("")):
     if type == "tv":
         results = await tmdb.search_series(query, int(year) if year.isdigit() else None)
     else:
         results = await tmdb.search_movies(query, int(year) if year.isdigit() else None)
     return templates.TemplateResponse("add.html", {"request": request, "results": results, "query": query, "year": year, "type": type})
-
+    
 @app.get("/import/{tmdb_id}", response_class=HTMLResponse)
 async def import_item(request: Request, tmdb_id: int, type: str = "movie", admin: bool = Depends(check_admin)):
     if type == "tv":
