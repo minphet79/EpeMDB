@@ -141,14 +141,23 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
 
             # Aplicar ordenamiento SIEMPRE (tanto con búsqueda como sin ella)
             if sort == "saga_sort":
-                # Palabras que no deben contar para agrupar (artículos, preposiciones, etc.)
+                # Palabras que no deben contar como "identidad" de la saga, 
+                # pero SÍ pueden ayudar a alcanzar el mínimo de 2 palabras en común.
+                # Añadimos palabras comunes de subtítulos de películas para evitar falsos positivos.
                 STOPWORDS = {
+                    # Artículos y preposiciones (ahora SÍ cuentan para el grupo, pero no definen la saga)
                     "the", "of", "and", "for", "to", "in", "on", "at", "by", "from", "with", "about",
                     "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "al", "y", "e",
                     "o", "u", "que", "en", "por", "para", "con", "sin", "sobre", "tras", "hasta", "desde",
                     "hacia", "según", "durante", "mediante", "bajo", "entre", "contra", "le", "les", "lo",
                     "su", "sus", "mi", "tu", "nos", "os", "me", "te", "se", "a", "ante", "cabe",
-                    "excepto", "salvo", "incluso", "via", "so", "no", "es", "son", "ser", "estar"
+                    "excepto", "salvo", "incluso", "via", "so", "no", "es", "son", "ser", "estar",
+                    "an", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
+                    "do", "does", "did", "will", "would", "could", "should", "may", "might", "can",
+                    # Palabras comunes de subtítulos/secuelas (evita que "Battle" una sagas distintas)
+                    "battle", "return", "rise", "war", "revenge", "legacy", "resurrection", 
+                    "reloaded", "revolutions", "resurrections", "part", "parte", "episode", "capitulo",
+                    "beginnings", "origins", "final", "ultimo", "last", "new", "nuevo", "next", "siguiente"
                 }
 
                 def get_key_words(title):
@@ -157,8 +166,8 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                     t = unicodedata.normalize('NFD', str(title)).encode('ascii', 'ignore').decode('utf-8').lower()
                     t = t.replace(':', '').replace('-', '').replace('.', '').replace(',', '')
                     words = t.split()
-                    # Filtramos palabras cortas (<3 letras) Y stopwords
-                    return {w for w in words if len(w) >= 3 and w not in STOPWORDS}
+                    # Filtramos palabras muy cortas (<3 letras)
+                    return {w for w in words if len(w) >= 3}
 
                 saga_groups = {}
                 
@@ -176,14 +185,17 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                         # Comparar con todas las palabras acumuladas del grupo
                         common = key_words & saga_data["all_words"]
                         
-                        # Deben compartir al menos 2 palabras clave (que no sean stopwords)
-                        if len(common) >= 2:
+                        # Filtrar las palabras en común para ver cuántas son "identidad" (no stopwords)
+                        significant_common = {w for w in common if w not in STOPWORDS}
+                        
+                        # REGLA: Deben compartir al menos 2 palabras en total, 
+                        # Y al menos 1 de esas debe ser una palabra "identidad" (no stopword)
+                        if len(common) >= 2 and len(significant_common) >= 1:
                             matched_saga = saga_id
                             break
                     
                     if matched_saga:
                         saga_groups[matched_saga]["movies"].append(m)
-                        # Actualizar palabras acumuladas del grupo
                         saga_groups[matched_saga]["all_words"].update(key_words)
                         year = m.get('year') or 9999
                         if year < saga_groups[matched_saga]["start_year"]:
@@ -197,7 +209,6 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                             "all_words": key_words
                         }
                 
-                # Ordenar sagas por año de inicio, y dentro de cada saga por año de película
                 sorted_sagas = sorted(saga_groups.values(), key=lambda s: (s["start_year"], s["name"].lower()))
                 
                 movies = []
