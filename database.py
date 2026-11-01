@@ -149,13 +149,11 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                     return t.replace(':', ' ').replace('-', ' ').replace('.', ' ').replace(',', ' ')
                 
                 def get_base_title(t):
-                    """Extrae las primeras 2-3 palabras significativas como ID de saga"""
+                    """Extrae las primeras 2 palabras significativas como ID de saga"""
                     words = normalize(t).split()
-                    # Filtrar artículos muy comunes
-                    articles = {'the', 'a', 'an', 'el', 'la', 'los', 'las', 'un', 'una'}
+                    articles = {'the', 'a', 'an', 'el', 'la', 'los', 'las', 'un', 'una', 'and', 'de', 'del', 'la', 'le', 'of'}
                     significant = [w for w in words if w not in articles and len(w) >= 3]
-                    # Tomar las primeras 3 palabras significativas
-                    return " ".join(significant[:3]) if significant else normalize(t)[:30]
+                    return " ".join(significant[:2]) if significant else normalize(t)[:30]
                 
                 saga_groups = {}
                 
