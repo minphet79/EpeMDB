@@ -136,9 +136,16 @@
                         </div>
                     {% endif %}
                 </div>
+                
+                <!-- Información de la película (Títulos + Año/Director) -->
                 <div class="p-3">
                     <h3 class="text-sm font-semibold text-white truncate group-hover:text-blue-400 transition">{{ m.title_es }}</h3>
-                    <p class="text-xs text-gray-400 mt-1">
+                    
+                    {% if m.title_original and m.title_original != m.title_es %}
+                    <p class="text-xs text-gray-400 italic truncate">{{ m.title_original }}</p>
+                    {% endif %}
+                    
+                    <p class="text-xs text-gray-500 mt-1">
                         {% if m.year %}📅 {{ m.year }}{% endif %}
                         {% if m.director %} · {{ m.director }}{% endif %}
                     </p>
