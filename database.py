@@ -148,57 +148,90 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                     t = unicodedata.normalize('NFD', str(t)).encode('ascii', 'ignore').decode('utf-8').lower()
                     return t.replace(':', ' ').replace('-', ' ').replace('.', ' ').replace(',', ' ')
                 
-                def get_base_title(t):
-                    """Extrae las primeras 2 palabras significativas como ID de saga"""
+                def get_significant_words(t):
+                    """Extrae palabras significativas ignorando artículos y números"""
+                    articles = {'the', 'a', 'an', 'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas',
+                               'and', 'de', 'del', 'al', 'of', 'in', 'on', 'at', 'by', 'for', 'with',
+                               'y', 'e', 'o', 'u', 'que', 'en', 'por', 'para', 'con', 'sin', 'sobre',
+                               'le', 'les', 'la', 'du', 'des', 'un', 'une', 'aux', 'ce', 'cet', 'cette'}
                     words = normalize(t).split()
-                    articles = {'the', 'a', 'an', 'el', 'la', 'los', 'las', 'un', 'una', 'and', 'de', 'del', 'la', 'le', 'of'}
-                    significant = [w for w in words if w not in articles and len(w) >= 3]
-                    return " ".join(significant[:2]) if significant else normalize(t)[:30]
+                    return {w for w in words if w not in articles and not w.isdigit() and len(w) >= 3}
                 
-                saga_groups = {}
+                # CLUSTERING TRANSITIVO con Union-Find
+                n = len(movies)
+                parent = list(range(n))
                 
-                for m in movies:
-                    title = m.get('title_original') or m.get('title_es') or ''
-                    norm_title = normalize(title)
-                    base_title = get_base_title(title)
-                    year = m.get('year') or 9999
+                def find(x):
+                    while parent[x] != x:
+                        parent[x] = parent[parent[x]]
+                        x = parent[x]
+                    return x
+                
+                def union(x, y):
+                    px, py = find(x), find(y)
+                    if px != py:
+                        parent[px] = py
+                
+                # Comparar cada película con todas las demás
+                for i in range(n):
+                    title_i = movies[i].get('title_original') or movies[i].get('title_es') or ''
+                    words_i = get_significant_words(title_i)
+                    norm_i = normalize(title_i)
                     
-                    matched_group = None
-                    
-                    for gid, gdata in saga_groups.items():
-                        # REGLA 1: Substring (si el título más corto está en el más largo)
-                        shorter = norm_title if len(norm_title) < len(gdata['norm_title']) else gdata['norm_title']
-                        longer = norm_title if len(norm_title) > len(gdata['norm_title']) else gdata['norm_title']
+                    for j in range(i + 1, n):
+                        title_j = movies[j].get('title_original') or movies[j].get('title_es') or ''
+                        words_j = get_significant_words(title_j)
+                        norm_j = normalize(title_j)
+                        
+                        # REGLA 1: Substring (título corto ≥8 letras está en el largo)
+                        shorter = norm_i if len(norm_i) < len(norm_j) else norm_j
+                        longer = norm_i if len(norm_i) > len(norm_j) else norm_j
                         
                         if len(shorter) >= 8 and shorter in longer:
-                            matched_group = gid
-                            break
+                            union(i, j)
+                            continue
                         
-                        # REGLA 2: Mismo título base (primeras palabras significativas)
-                        if base_title and gdata['base_title'] and base_title == gdata['base_title']:
-                            matched_group = gid
-                            break
-                    
-                    if matched_group:
-                        saga_groups[matched_group]['movies'].append(m)
-                        if year < saga_groups[matched_group]['start_year']:
-                            saga_groups[matched_group]['start_year'] = year
-                    else:
-                        gid = base_title or title.lower()[:50]
-                        saga_groups[gid] = {
-                            'movies': [m],
-                            'start_year': year,
-                            'base_title': base_title,
-                            'norm_title': norm_title
-                        }
+                        # REGLA 2: Comparten al menos 2 palabras significativas
+                        common = words_i & words_j
+                        if len(common) >= 2:
+                            union(i, j)
                 
-                # Ordenar sagas por año de inicio
-                sorted_sagas = sorted(saga_groups.values(), key=lambda s: (s['start_year'], s['base_title'] or ''))
+                # Agrupar películas por su raíz
+                saga_groups = {}
+                for i in range(n):
+                    root = find(i)
+                    if root not in saga_groups:
+                        saga_groups[root] = []
+                    saga_groups[root].append(movies[i])
                 
+                # Ordenar sagas por año de la película más antigua
+                sorted_sagas = []
+                for group in saga_groups.values():
+                    min_year = min((m.get('year') or 9999 for m in group), default=9999)
+                    sorted_sagas.append((min_year, group))
+                
+                sorted_sagas.sort(key=lambda x: (x[0], (x[1][0].get('title_original') or x[1][0].get('title_es') or '').lower()))
+                
+                # Aplanar, ordenando dentro de cada saga por año
                 movies = []
-                for saga in sorted_sagas:
-                    saga_movies = sorted(saga['movies'], key=lambda m: m.get('year') or 0)
-                    movies.extend(saga_movies)                    
+                for _, group in sorted_sagas:
+                    group_sorted = sorted(group, key=lambda m: m.get('year') or 0)
+                    movies.extend(group_sorted)
+            else:
+                # Otros tipos de ordenamiento
+                if sort == "year_asc":
+                    movies.sort(key=lambda m: (m.get('year') or 0, m.get('title_original') or ''))
+                elif sort == "year_desc":
+                    movies.sort(key=lambda m: -(m.get('year') or 0))
+                elif sort == "title_es":
+                    movies.sort(key=lambda m: (m.get('title_es') or '').lower())
+                elif sort == "title_original":
+                    movies.sort(key=lambda m: (m.get('title_original') or m.get('title_es') or '').lower())
+                elif sort == "name":
+                    movies.sort(key=lambda m: (m.get('title_original') or m.get('title_es') or '').lower())
+                else:
+                    movies.sort(key=lambda m: m.get('id', 0), reverse=True)
+            
             # Aplicar paginación
             movies = movies[offset:offset + limit]
 
