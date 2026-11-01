@@ -141,21 +141,45 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
 
             # Aplicar ordenamiento SIEMPRE (tanto con búsqueda como sin ella)
             if sort == "saga_sort":
-                # 1. Calcular el año de inicio de cada "saga" (basado en el título original)
+                # Función auxiliar para extraer el "prefijo de saga" (primeras 2 palabras)
+                def get_saga_prefix(title):
+                    if not title: return ""
+                    import unicodedata
+                    t = unicodedata.normalize('NFD', str(title)).encode('ascii', 'ignore').decode('utf-8').lower()
+                    t = t.replace(':', '').replace('-', '').replace('.', '').replace(',', '')
+                    words = t.split()
+                    if len(words) <= 2:
+                        return " ".join(words)
+                    return " ".join(words[:2])
+
+                # 1. Calcular el año de inicio de cada "saga" (buscando el prefijo en cualquier parte del título)
                 saga_start_years = {}
                 for m in movies:
-                    title = (m.get('title_original') or m.get('title_es') or '').lower()
+                    title = m.get('title_original') or m.get('title_es') or ''
+                    prefix = get_saga_prefix(title)
                     year = m.get('year') or 9999
-                    if title not in saga_start_years or year < saga_start_years[title]:
-                        saga_start_years[title] = year
+                    
+                    if not prefix: continue
+
+                    # Buscar si este prefijo aparece en cualquier parte de otros títulos
+                    for m2 in movies:
+                        title2 = m2.get('title_original') or m2.get('title_es') or ''
+                        import unicodedata
+                        t2 = unicodedata.normalize('NFD', str(title2)).encode('ascii', 'ignore').decode('utf-8').lower()
+                        t2 = t2.replace(':', '').replace('-', '').replace('.', '').replace(',', '')
+                        
+                        if prefix in t2:
+                            year2 = m2.get('year') or 9999
+                            if prefix not in saga_start_years or year2 < saga_start_years[prefix]:
+                                saga_start_years[prefix] = year2
                 
                 # 2. Ordenar: 
-                #    - Primero por el año de inicio de la saga (la más antigua va primero)
-                #    - Segundo por el nombre de la saga (para mantenerlas agrupadas)
+                #    - Primero por el año de inicio de la saga
+                #    - Segundo por el nombre del prefijo (para mantenerlas agrupadas)
                 #    - Tercero por el año de la película individual
                 movies.sort(key=lambda m: (
-                    saga_start_years.get((m.get('title_original') or m.get('title_es') or '').lower(), 9999),
-                    (m.get('title_original') or m.get('title_es') or '').lower(),
+                    saga_start_years.get(get_saga_prefix(m.get('title_original') or m.get('title_es') or ''), 9999),
+                    get_saga_prefix(m.get('title_original') or m.get('title_es') or ''),
                     m.get('year') or 0
                 ))
 
