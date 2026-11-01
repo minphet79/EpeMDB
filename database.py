@@ -140,17 +140,20 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                 movies = [dict(r) for r in cur.fetchall()]
 
             # Aplicar ordenamiento SIEMPRE (tanto con búsqueda como sin ella)
-            if sort == "year_asc":
+            if sort == "added_desc":
+                # Más recientes primero (por ID, que es autoincremental)
+                movies.sort(key=lambda m: m.get('id', 0), reverse=True)
+            elif sort == "year_asc":
                 movies.sort(key=lambda m: (m.get('year') or 0, m.get('title_original') or ''))
             elif sort == "year_desc":
                 movies.sort(key=lambda m: -(m.get('year') or 0))
             elif sort == "title_es":
                 movies.sort(key=lambda m: (m.get('title_es') or '').lower())
-            elif sort == "title_original":
-                movies.sort(key=lambda m: (m.get('title_original') or m.get('title_es') or '').lower())
             elif sort == "name":
-                movies.sort(key=lambda m: (m.get('title_original') or m.get('title_es') or '').lower())
+                # Ordenar por título en español (más natural para el usuario)
+                movies.sort(key=lambda m: (m.get('title_es') or m.get('title_original') or '').lower())
             else:
+                # Por defecto: más recientes primero
                 movies.sort(key=lambda m: m.get('id', 0), reverse=True)
             
             # Aplicar paginación
