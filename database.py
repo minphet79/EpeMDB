@@ -142,56 +142,65 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
             # Aplicar ordenamiento SIEMPRE (tanto con búsqueda como sin ella)
             if sort == "saga_sort":
                 import unicodedata
-
+                
                 def normalize(t):
                     if not t: return ""
                     t = unicodedata.normalize('NFD', str(t)).encode('ascii', 'ignore').decode('utf-8').lower()
-                    return t.replace(':', '').replace('-', '').replace('.', '').replace(',', '')
-
-                def get_words(t):
-                    return {w for w in normalize(t).split() if len(w) >= 3}
-
-                saga_groups = {} 
-
+                    return t.replace(':', ' ').replace('-', ' ').replace('.', ' ').replace(',', ' ')
+                
+                def get_base_title(t):
+                    """Extrae las primeras 2-3 palabras significativas como ID de saga"""
+                    words = normalize(t).split()
+                    # Filtrar artículos muy comunes
+                    articles = {'the', 'a', 'an', 'el', 'la', 'los', 'las', 'un', 'una'}
+                    significant = [w for w in words if w not in articles and len(w) >= 3]
+                    # Tomar las primeras 3 palabras significativas
+                    return " ".join(significant[:3]) if significant else normalize(t)[:30]
+                
+                saga_groups = {}
+                
                 for m in movies:
                     title = m.get('title_original') or m.get('title_es') or ''
-                    words = get_words(title)
+                    norm_title = normalize(title)
+                    base_title = get_base_title(title)
                     year = m.get('year') or 9999
-
-                    if not words:
-                        gid = f"unique_{id(m)}"
-                        saga_groups[gid] = {'movies': [m], 'start_year': year, 'name': title}
-                        continue
-
+                    
                     matched_group = None
+                    
                     for gid, gdata in saga_groups.items():
-                        common = words & gdata['words']
-                        # Si comparten 2 o más palabras, son la misma saga
-                        if len(common) >= 2:
+                        # REGLA 1: Substring (si el título más corto está en el más largo)
+                        shorter = norm_title if len(norm_title) < len(gdata['norm_title']) else gdata['norm_title']
+                        longer = norm_title if len(norm_title) > len(gdata['norm_title']) else gdata['norm_title']
+                        
+                        if len(shorter) >= 8 and shorter in longer:
                             matched_group = gid
                             break
-
+                        
+                        # REGLA 2: Mismo título base (primeras palabras significativas)
+                        if base_title and gdata['base_title'] and base_title == gdata['base_title']:
+                            matched_group = gid
+                            break
+                    
                     if matched_group:
                         saga_groups[matched_group]['movies'].append(m)
-                        saga_groups[matched_group]['words'].update(words)
                         if year < saga_groups[matched_group]['start_year']:
                             saga_groups[matched_group]['start_year'] = year
                     else:
-                        gid = title.lower()[:50]
+                        gid = base_title or title.lower()[:50]
                         saga_groups[gid] = {
                             'movies': [m],
                             'start_year': year,
-                            'name': title,
-                            'words': words
+                            'base_title': base_title,
+                            'norm_title': norm_title
                         }
-
-                sorted_sagas = sorted(saga_groups.values(), key=lambda s: (s['start_year'], s['name'].lower()))
+                
+                # Ordenar sagas por año de inicio
+                sorted_sagas = sorted(saga_groups.values(), key=lambda s: (s['start_year'], s['base_title'] or ''))
                 
                 movies = []
                 for saga in sorted_sagas:
                     saga_movies = sorted(saga['movies'], key=lambda m: m.get('year') or 0)
-                    movies.extend(saga_movies)
-                    
+                    movies.extend(saga_movies)                    
             # Aplicar paginación
             movies = movies[offset:offset + limit]
 
