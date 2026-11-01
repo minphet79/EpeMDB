@@ -148,55 +148,44 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                     t = unicodedata.normalize('NFD', str(t)).encode('ascii', 'ignore').decode('utf-8').lower()
                     return t.replace(':', '').replace('-', '').replace('.', '').replace(',', '')
 
-                def get_first_two_words(t):
-                    words = t.split()
-                    if len(words) >= 2:
-                        return " ".join(words[:2])
-                    return t
+                def get_words(t):
+                    return {w for w in normalize(t).split() if len(w) >= 3}
 
-                # 1. Agrupar películas
                 saga_groups = {} 
 
                 for m in movies:
-                    title_orig = m.get('title_original') or m.get('title_es') or ''
-                    norm_title = normalize(title_orig)
-                    prefix = get_first_two_words(norm_title)
+                    title = m.get('title_original') or m.get('title_es') or ''
+                    words = get_words(title)
                     year = m.get('year') or 9999
 
+                    if not words:
+                        gid = f"unique_{id(m)}"
+                        saga_groups[gid] = {'movies': [m], 'start_year': year, 'name': title}
+                        continue
+
                     matched_group = None
-
                     for gid, gdata in saga_groups.items():
-                        # REGLA 1: Substring (el título más corto debe tener al menos 10 letras para evitar "el" o "it")
-                        shorter = min(norm_title, gdata['rep_title'], key=len)
-                        longer = max(norm_title, gdata['rep_title'], key=len)
-
-                        if len(shorter) >= 10 and shorter in longer:
-                            matched_group = gid
-                            break
-
-                        # REGLA 2: Mismo prefijo de 2 palabras (ej: "the hobbit", "star wars", "back to")
-                        if prefix and gdata['prefix'] and prefix == gdata['prefix']:
+                        common = words & gdata['words']
+                        # Si comparten 2 o más palabras, son la misma saga
+                        if len(common) >= 2:
                             matched_group = gid
                             break
 
                     if matched_group:
                         saga_groups[matched_group]['movies'].append(m)
+                        saga_groups[matched_group]['words'].update(words)
                         if year < saga_groups[matched_group]['start_year']:
                             saga_groups[matched_group]['start_year'] = year
-                        # Mantener el título más corto como representante para mejorar futuros substring
-                        if len(norm_title) < len(saga_groups[matched_group]['rep_title']):
-                            saga_groups[matched_group]['rep_title'] = norm_title
                     else:
-                        gid = title_orig.lower()[:50]
+                        gid = title.lower()[:50]
                         saga_groups[gid] = {
                             'movies': [m],
                             'start_year': year,
-                            'rep_title': norm_title,
-                            'prefix': prefix
+                            'name': title,
+                            'words': words
                         }
 
-                # 2. Ordenar sagas por año de inicio y aplanar
-                sorted_sagas = sorted(saga_groups.values(), key=lambda s: (s['start_year'], s['rep_title']))
+                sorted_sagas = sorted(saga_groups.values(), key=lambda s: (s['start_year'], s['name'].lower()))
                 
                 movies = []
                 for saga in sorted_sagas:
