@@ -140,10 +140,15 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
                 movies = [dict(r) for r in cur.fetchall()]
 
             # Aplicar ordenamiento SIEMPRE (tanto con búsqueda como sin ella)
-            if sort == "year_asc":
+            if sort == "saga_sort":
+                # Ordenar primero por título original (A-Z), luego por año (ascendente)
+                movies.sort(key=lambda m: (
+                    (m.get('title_original') or m.get('title_es') or '').lower(),
+                    m.get('year') or 0
+                ))
+            elif sort == "year_asc":
                 movies.sort(key=lambda m: (m.get('year') or 0, m.get('title_original') or ''))
             elif sort == "year_desc":
-                movies.sort(key=lambda m: (-(m.get('year') or 0), m.get('title_original') or ''), reverse=False)
                 movies.sort(key=lambda m: -(m.get('year') or 0))
             elif sort == "title_es":
                 movies.sort(key=lambda m: (m.get('title_es') or '').lower())
