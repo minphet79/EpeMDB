@@ -141,23 +141,23 @@ def list_movies(q="", sort="added_desc", continent="", country="", director="", 
 
             # Aplicar ordenamiento SIEMPRE (tanto con búsqueda como sin ella)
             if sort == "saga_sort":
-                # Ordenar primero por título original (A-Z), luego por año (ascendente)
+                # 1. Calcular el año de inicio de cada "saga" (basado en el título original)
+                saga_start_years = {}
+                for m in movies:
+                    title = (m.get('title_original') or m.get('title_es') or '').lower()
+                    year = m.get('year') or 9999
+                    if title not in saga_start_years or year < saga_start_years[title]:
+                        saga_start_years[title] = year
+                
+                # 2. Ordenar: 
+                #    - Primero por el año de inicio de la saga (la más antigua va primero)
+                #    - Segundo por el nombre de la saga (para mantenerlas agrupadas)
+                #    - Tercero por el año de la película individual
                 movies.sort(key=lambda m: (
+                    saga_start_years.get((m.get('title_original') or m.get('title_es') or '').lower(), 9999),
                     (m.get('title_original') or m.get('title_es') or '').lower(),
                     m.get('year') or 0
                 ))
-            elif sort == "year_asc":
-                movies.sort(key=lambda m: (m.get('year') or 0, m.get('title_original') or ''))
-            elif sort == "year_desc":
-                movies.sort(key=lambda m: -(m.get('year') or 0))
-            elif sort == "title_es":
-                movies.sort(key=lambda m: (m.get('title_es') or '').lower())
-            elif sort == "title_original":
-                movies.sort(key=lambda m: (m.get('title_original') or m.get('title_es') or '').lower())
-            elif sort == "name":
-                movies.sort(key=lambda m: (m.get('title_original') or m.get('title_es') or '').lower())
-            else:
-                movies.sort(key=lambda m: m.get('id', 0), reverse=True)
 
             # Aplicar paginación
             movies = movies[offset:offset + limit]
